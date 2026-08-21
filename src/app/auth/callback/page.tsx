@@ -88,11 +88,11 @@ function OAuthCallbackContent() {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6 text-center border-border shadow-xl">
+      <Card className="w-full max-w-md p-6 text-center border-border/80 shadow-2xl bg-card">
         <CardHeader className="space-y-3">
           {mfaChallenge ? (
             <>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground mx-auto">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground mx-auto shadow-md">
                 <KeyRound className="h-6 w-6" />
               </div>
               <CardTitle className="text-lg font-bold">Two-Factor Authentication Required</CardTitle>
@@ -102,7 +102,7 @@ function OAuthCallbackContent() {
 
               <form onSubmit={handleCompleteOAuthMFA} className="space-y-4 pt-2 text-left">
                 {error && (
-                  <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+                  <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>{error}</span>
                   </div>
@@ -119,11 +119,11 @@ function OAuthCallbackContent() {
                     placeholder="e.g. 123456"
                     value={mfaCode}
                     onChange={(e) => setMfaCode(e.target.value.replace(/\s+/g, ""))}
-                    className="flex h-11 w-full rounded-lg border border-input bg-card px-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
                   />
                 </div>
 
-                <Button type="submit" isLoading={isVerifyingMFA} className="w-full gap-2">
+                <Button type="submit" size="lg" isLoading={isVerifyingMFA} className="w-full gap-2">
                   <CheckCircle2 className="h-4 w-4" />
                   <span>Verify & Sign In</span>
                 </Button>
@@ -131,7 +131,7 @@ function OAuthCallbackContent() {
             </>
           ) : error ? (
             <>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive mx-auto">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mx-auto">
                 <AlertCircle className="h-6 w-6" />
               </div>
               <CardTitle className="text-lg font-bold text-destructive">Authentication Error</CardTitle>
@@ -144,7 +144,7 @@ function OAuthCallbackContent() {
             </>
           ) : (
             <>
-              <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+              <div className="h-10 w-10 animate-spin rounded-full border-3 border-primary border-t-transparent mx-auto" />
               <CardTitle className="text-base font-bold">Completing Social Authentication...</CardTitle>
               <CardDescription className="text-xs">
                 Exchanging PKCE cryptographic proof and verifying identity with Auth N&Z.

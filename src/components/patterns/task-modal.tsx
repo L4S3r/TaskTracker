@@ -104,10 +104,9 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
       title="Create New Team Task"
       description="Add a task to the board, schedule deliverables, and assign to one or multiple colleagues."
     >
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
-
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+          <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -128,7 +127,7 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
           </label>
           <textarea
             rows={3}
-            className="flex w-full rounded-lg border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full rounded-lg border border-input bg-card/60 px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary custom-scrollbar resize-none"
             placeholder="Detailed requirements and objectives..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -143,12 +142,12 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
+              <option value="low">Low Priority</option>
+              <option value="medium">Medium Priority</option>
+              <option value="high">High Priority</option>
+              <option value="urgent">Urgent Priority</option>
             </select>
           </div>
 
@@ -159,12 +158,12 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
             >
               <option value="todo">To Do</option>
               <option value="in_progress">In Progress</option>
-              <option value="review">Review</option>
-              <option value="done">Done</option>
+              <option value="review">In Review</option>
+              <option value="done">Completed</option>
             </select>
           </div>
         </div>
@@ -178,7 +177,7 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
             <span className="text-[10px] text-muted-foreground">Select one or multiple members</span>
           </div>
 
-          <div className="max-h-32 overflow-y-auto rounded-lg border border-border bg-muted/20 p-2 space-y-1">
+          <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
             {members.map((m) => {
               const isSelected = selectedAssignees.some((a) => a.email.toLowerCase() === m.email.toLowerCase());
               return (
@@ -186,19 +185,23 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
                   key={m.email}
                   type="button"
                   onClick={() => handleToggleAssignee(m)}
-                  className={`flex w-full items-center justify-between p-1.5 rounded-md text-xs transition-colors ${
-                    isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
+                  className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-primary/10 border border-primary/40 text-foreground"
+                      : "hover:bg-muted/60 border border-transparent text-foreground/80"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
-                    <span className="font-medium text-foreground">{m.name || m.email.split("@")[0]}</span>
-                    <span className="text-[10px] text-muted-foreground">({m.role})</span>
+                    <div className="text-left">
+                      <span className="font-semibold text-foreground block leading-tight">{m.name || m.email.split("@")[0]}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.email} &bull; {m.role}</span>
+                    </div>
                   </div>
 
                   {isSelected && (
-                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="h-2.5 w-2.5" />
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                      <Check className="h-3 w-3" />
                     </div>
                   )}
                 </button>
@@ -207,27 +210,29 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
           </div>
         </div>
 
-        <Input
-          label="Target Deadline"
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Target Deadline"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
 
-        <Input
-          label="Tags (comma separated)"
-          type="text"
-          placeholder="e.g. Auth, Frontend, Security"
-          value={tagsInput}
-          onChange={(e) => setTagsInput(e.target.value)}
-        />
+          <Input
+            label="Tags (comma separated)"
+            type="text"
+            placeholder="e.g. Auth, Frontend, API"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+          />
+        </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-2.5 pt-3 border-t border-border/70">
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" isLoading={isLoading}>
-            Create & Notify Assignees
+          <Button type="submit" size="sm" isLoading={isLoading}>
+            Create Task Deliverable
           </Button>
         </div>
       </form>

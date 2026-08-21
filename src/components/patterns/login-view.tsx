@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { CheckSquare, Shield, KeyRound, AlertCircle } from "lucide-react";
+import { CheckSquare, Shield, KeyRound, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export function LoginView() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export function LoginView() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,10 +99,10 @@ export function LoginView() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4 sm:p-6">
-      <Card className="w-full max-w-md shadow-xl border-border bg-card">
-        <CardHeader className="space-y-2 text-center pb-6">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md mb-2">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 sm:p-6">
+      <Card className="w-full max-w-md shadow-2xl border-border/80 bg-card">
+        <CardHeader className="space-y-2 text-center pb-5">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-blue-700 text-primary-foreground shadow-md mb-2">
             <CheckSquare className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl font-bold tracking-tight">Sign in to TaskTracker</CardTitle>
@@ -110,7 +111,7 @@ export function LoginView() {
 
         <CardContent className="space-y-4">
           {error && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+            <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -123,7 +124,7 @@ export function LoginView() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full gap-2.5 bg-card hover:bg-muted font-normal text-xs"
+                  className="w-full gap-2.5 bg-card hover:bg-muted/70 font-medium text-xs h-10 shadow-xs"
                   onClick={() => handleOAuthLogin("google")}
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -152,7 +153,7 @@ export function LoginView() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full gap-2.5 bg-card hover:bg-muted font-normal text-xs"
+                  className="w-full gap-2.5 bg-card hover:bg-muted/70 font-medium text-xs h-10 shadow-xs"
                   onClick={() => handleOAuthLogin("github")}
                 >
                   <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
@@ -164,7 +165,7 @@ export function LoginView() {
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
+                  <div className="w-full border-t border-border/80" />
                 </div>
                 <div className="relative flex justify-center text-[10px] uppercase">
                   <span className="bg-card px-2 text-muted-foreground font-semibold">Or with password</span>
@@ -186,20 +187,30 @@ export function LoginView() {
 
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               placeholder="Enter your account password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              endIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              }
             />
 
-            <Button type="submit" className="w-full mt-2" isLoading={isLoading}>
+            <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading}>
               Sign In
             </Button>
           </form>
         </CardContent>
 
-        <CardFooter className="flex justify-center border-t border-border pt-4 pb-4">
+        <CardFooter className="flex justify-center border-t border-border/70 pt-4 pb-4">
           <p className="text-xs text-muted-foreground">
             Don't have an account?{" "}
             <Link href="/register" className="font-semibold text-primary hover:underline">
@@ -216,31 +227,39 @@ export function LoginView() {
         title="Multi-Factor Verification Required"
         description="Enter the 6-digit verification code from your authenticator app (Google Authenticator) or an emergency recovery code."
       >
-        <form onSubmit={handleCompleteMFA} className="space-y-4 mt-2">
+        <form onSubmit={handleCompleteMFA} className="space-y-4 pt-1">
           {mfaError && (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+            <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{mfaError}</span>
             </div>
           )}
 
-          <div className="flex items-center justify-center p-3 bg-muted/40 rounded-xl border border-border">
+          <div className="flex items-center justify-center p-4 bg-secondary/40 rounded-2xl border border-border/70">
             <Shield className="h-8 w-8 text-primary" />
           </div>
 
-          <Input
-            label="Verification Code"
-            type="text"
-            required
-            autoFocus
-            maxLength={12}
-            placeholder="e.g. 123456 or Backup Code"
-            value={mfaCode}
-            onChange={(e) => setMfaCode(e.target.value.trim())}
-          />
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+              6-Digit Authenticator or Backup Code
+            </label>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                required
+                autoFocus
+                maxLength={12}
+                placeholder="e.g. 123456"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.trim())}
+                className="flex h-10 w-full rounded-lg border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+              />
+            </div>
+          </div>
 
-          <Button type="submit" className="w-full" isLoading={mfaLoading}>
-            Verify Code
+          <Button type="submit" className="w-full" size="lg" isLoading={mfaLoading}>
+            Verify Code & Enter
           </Button>
         </form>
       </Modal>

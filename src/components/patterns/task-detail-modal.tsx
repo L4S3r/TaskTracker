@@ -164,10 +164,9 @@ export function TaskDetailModal({
         title="Task Deliverable Details"
         description="Inspect task specifications, assigned personnel, deadlines, and progress."
       >
-        <form onSubmit={handleSaveChanges} noValidate className="space-y-4">
-
+        <form onSubmit={handleSaveChanges} noValidate className="space-y-4 pt-1">
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+            <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -192,7 +191,7 @@ export function TaskDetailModal({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
               >
                 <option value="todo">To Do</option>
                 <option value="in_progress">In Progress</option>
@@ -208,12 +207,12 @@ export function TaskDetailModal({
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="urgent">Urgent Priority</option>
               </select>
             </div>
           </div>
@@ -225,7 +224,7 @@ export function TaskDetailModal({
             </label>
             <textarea
               rows={3}
-              className="flex w-full rounded-lg border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full rounded-lg border border-input bg-card/60 px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary custom-scrollbar resize-none"
               placeholder="Detailed specifications, instructions, or deliverables..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -233,15 +232,15 @@ export function TaskDetailModal({
           </div>
 
           {/* Group / Multi-Assignee Selection */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
                 Assigned Personnel ({selectedAssignees.length})
               </label>
-              <span className="text-[11px] text-muted-foreground">Select team members to collaborate</span>
+              <span className="text-[10px] text-muted-foreground">Select team members to collaborate</span>
             </div>
 
-            <div className="max-h-36 overflow-y-auto rounded-lg border border-border bg-muted/20 p-2 space-y-1.5">
+            <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
               {members.map((m) => {
                 const isSelected = selectedAssignees.some((a) => a.email.toLowerCase() === m.email.toLowerCase());
                 return (
@@ -249,20 +248,22 @@ export function TaskDetailModal({
                     key={m.email}
                     type="button"
                     onClick={() => handleToggleAssignee(m)}
-                    className={`flex w-full items-center justify-between p-2 rounded-md text-xs transition-colors ${
-                      isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
+                    className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-primary/10 border border-primary/40 text-foreground"
+                        : "hover:bg-muted/60 border border-transparent text-foreground/80"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
                       <div className="text-left">
-                        <p className="font-semibold text-foreground">{m.name || m.email.split("@")[0]}</p>
-                        <p className="text-[10px] text-muted-foreground">{m.email} &bull; {m.role.toUpperCase()}</p>
+                        <p className="font-semibold text-foreground leading-tight">{m.name || m.email.split("@")[0]}</p>
+                        <p className="text-[10px] text-muted-foreground">{m.email} &bull; {m.role}</p>
                       </div>
                     </div>
 
                     {isSelected && (
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
                         <Check className="h-3 w-3" />
                       </div>
                     )}
@@ -271,59 +272,63 @@ export function TaskDetailModal({
               })}
 
               {members.length === 0 && (
-                <p className="text-[11px] text-muted-foreground p-2 text-center">No workspace members found.</p>
+                <p className="text-[11px] text-muted-foreground p-3 text-center">No workspace members found.</p>
               )}
             </div>
           </div>
 
-          {/* Target Deadline */}
-          <Input
-            label="Target Deadline"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
+          {/* Target Deadline and Tags Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Target Deadline"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
 
-          {/* Tags */}
-          <Input
-            label="Tags (comma separated)"
-            type="text"
-            placeholder="e.g. Frontend, Auth, Priority-1"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-          />
+            <Input
+              label="Tags (comma separated)"
+              type="text"
+              placeholder="e.g. Frontend, Auth, API"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+            />
+          </div>
 
           {/* Assigner & Metadata Banner */}
-          <div className="rounded-xl border border-border bg-secondary/30 p-3.5 flex items-center justify-between gap-3">
+          <div className="rounded-xl border border-border/70 bg-secondary/30 p-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <Avatar name={creatorDisplayName} src={creatorAvatar} size="sm" />
               <div>
-                <p className="text-xs font-semibold text-foreground">Assigned By: {creatorDisplayName}</p>
+                <p className="text-xs font-semibold text-foreground">Created By: {creatorDisplayName}</p>
                 <p className="text-[10px] text-muted-foreground">
                   {task.created_at ? new Date(task.created_at).toLocaleString() : "Recently created"}
                 </p>
               </div>
             </div>
-            <Badge variant="secondary">{task.priority.toUpperCase()}</Badge>
+            <Badge variant="secondary" className="text-[10px] font-bold tracking-wider">
+              {task.priority.toUpperCase()}
+            </Badge>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-2 border-t border-border">
+          <div className="flex items-center justify-between pt-3 border-t border-border/70">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => setShowDeleteConfirm(true)}
-              className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30"
+              className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/50"
             >
-              <Trash2 className="h-4 w-4" />
-              <span>Delete Task</span>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete</span>
             </Button>
 
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" isLoading={isSaving}>
+              <Button type="submit" size="sm" isLoading={isSaving}>
                 Save Changes
               </Button>
             </div>

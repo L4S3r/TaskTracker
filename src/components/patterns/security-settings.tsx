@@ -156,22 +156,22 @@ export function SecuritySettings() {
       </div>
 
       {statusMessage && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-500 font-medium">
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{statusMessage}</span>
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Identity Profile Overview */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader className="p-5 pb-3">
+      <Card className="border-border/80 bg-card shadow-sm">
+        <CardHeader className="p-4 sm:p-5 pb-3">
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
             <span>Account Security Claims</span>
@@ -179,24 +179,24 @@ export function SecuritySettings() {
           <CardDescription>Role and clearance context assigned by the Auth N&Z gateway.</CardDescription>
         </CardHeader>
 
-        <CardContent className="p-5 pt-0 space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-border p-3 bg-secondary/20">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Department</span>
-              <p className="text-sm font-semibold text-foreground mt-1">
+        <CardContent className="p-4 sm:p-5 pt-0 space-y-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border/70 p-3.5 bg-secondary/30">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Department</span>
+              <p className="text-sm font-bold text-foreground mt-1">
                 {user?.metadata?.department || "General"}
               </p>
             </div>
 
-            <div className="rounded-lg border border-border p-3 bg-secondary/20">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Security Clearance</span>
-              <p className="text-sm font-semibold text-foreground mt-1">
+            <div className="rounded-xl border border-border/70 p-3.5 bg-secondary/30">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Security Clearance</span>
+              <p className="text-sm font-bold text-foreground mt-1">
                 Level {user?.metadata?.clearance ?? 1} / 3
               </p>
             </div>
 
-            <div className="rounded-lg border border-border p-3 bg-secondary/20">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Assigned Roles</span>
+            <div className="rounded-xl border border-border/70 p-3.5 bg-secondary/30">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Assigned Roles</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {(Array.isArray(user?.roles)
                   ? user.roles
@@ -215,20 +215,20 @@ export function SecuritySettings() {
       </Card>
 
       {/* MFA Management Card */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader className="p-5 pb-3">
+      <Card className="border-border/80 bg-card shadow-sm">
+        <CardHeader className="p-4 sm:p-5 pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Smartphone className="h-5 w-5 text-primary" />
               <span>Two-Factor Authentication (RFC 6238 TOTP)</span>
             </CardTitle>
             {isMfaActive ? (
-              <span className="inline-flex items-center gap-1 text-green-500 font-bold text-xs bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20">
+              <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>Enabled</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-amber-500 font-semibold text-xs bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+              <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold text-xs bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                 <ShieldAlert className="h-3.5 w-3.5" />
                 <span>Disabled</span>
               </span>
@@ -239,13 +239,13 @@ export function SecuritySettings() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="p-5 pt-0 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl border border-border bg-secondary/20">
+        <CardContent className="p-4 sm:p-5 pt-0 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl border border-border/80 bg-secondary/30">
             <div>
-              <p className="text-xs font-semibold text-foreground">
+              <p className="text-xs font-bold text-foreground">
                 {isMfaActive ? "Authenticator App is Active" : "Add Authenticator App"}
               </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 max-w-md">
+              <p className="text-[11px] text-muted-foreground mt-0.5 max-w-md leading-relaxed">
                 {isMfaActive
                   ? "Your account requires entering a 6-digit code or backup code on every login attempt."
                   : "Scan a QR code using Google Authenticator, Bitwarden, or 1Password to generate time-based codes."}
@@ -264,7 +264,7 @@ export function SecuritySettings() {
                   </Button>
                 </>
               ) : (
-                <Button onClick={handleStartMfaSetup} isLoading={isLoading} className="gap-2">
+                <Button onClick={handleStartMfaSetup} isLoading={isLoading} size="sm" className="gap-2 shadow-sm">
                   <QrCode className="h-4 w-4" />
                   <span>Set Up Authenticator</span>
                 </Button>
@@ -275,8 +275,8 @@ export function SecuritySettings() {
       </Card>
 
       {/* Session Invalidation Card */}
-      <Card className="border-border bg-card shadow-sm">
-        <CardHeader className="p-5 pb-3">
+      <Card className="border-destructive/30 bg-card shadow-sm">
+        <CardHeader className="p-4 sm:p-5 pb-3">
           <CardTitle className="text-base font-bold flex items-center gap-2 text-destructive">
             <Lock className="h-5 w-5" />
             <span>Active Sessions & Device Management</span>
@@ -284,16 +284,16 @@ export function SecuritySettings() {
           <CardDescription>Invalidate JWT tokens and revoke stateful Redis sessions.</CardDescription>
         </CardHeader>
 
-        <CardContent className="p-5 pt-0 space-y-3">
+        <CardContent className="p-4 sm:p-5 pt-0 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl border border-destructive/20 bg-destructive/5">
             <div>
-              <p className="text-xs font-semibold text-foreground">Log Out from All Devices</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-xs font-bold text-foreground">Log Out from All Devices</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                 Revokes all active sessions and blacklists your active JWT tokens across all browsers and apps.
               </p>
             </div>
 
-            <Button variant="destructive" onClick={() => logout(true)} className="gap-2 shrink-0">
+            <Button variant="destructive" size="sm" onClick={() => logout(true)} className="gap-2 shrink-0 shadow-sm">
               <LogOut className="h-4 w-4" />
               <span>Revoke All Devices</span>
             </Button>
@@ -309,40 +309,49 @@ export function SecuritySettings() {
         description="Scan the QR code, save your recovery codes, and enter the 6-digit code to activate."
       >
         {mfaData && (
-          <div className="space-y-5 text-xs mt-2">
-            {/* Step Tabs */}
-            <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="space-y-4 text-xs pt-1">
+            {/* Step Stepper Tabs */}
+            <div className="flex items-center justify-between border-b border-border/70 pb-3">
               <button
+                type="button"
                 onClick={() => setStep(1)}
-                className={`flex items-center gap-1.5 font-bold ${
-                  step === 1 ? "text-primary" : "text-muted-foreground"
+                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
+                  step === 1 ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px]">1</span>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                  step === 1 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                }`}>1</span>
                 <span>Scan QR</span>
               </button>
 
-              <span className="text-border">→</span>
+              <span className="text-muted-foreground/40 text-xs">→</span>
 
               <button
+                type="button"
                 onClick={() => setStep(2)}
-                className={`flex items-center gap-1.5 font-bold ${
-                  step === 2 ? "text-primary" : "text-muted-foreground"
+                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
+                  step === 2 ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px]">2</span>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                  step === 2 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                }`}>2</span>
                 <span>Backup Codes</span>
               </button>
 
-              <span className="text-border">→</span>
+              <span className="text-muted-foreground/40 text-xs">→</span>
 
               <button
+                type="button"
                 onClick={() => setStep(3)}
-                className={`flex items-center gap-1.5 font-bold ${
-                  step === 3 ? "text-primary" : "text-muted-foreground"
+                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
+                  step === 3 ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px]">3</span>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                  step === 3 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                }`}>3</span>
                 <span>Verify Code</span>
               </button>
             </div>
@@ -352,9 +361,9 @@ export function SecuritySettings() {
               <div className="space-y-4">
                 <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-border shadow-inner max-w-xs mx-auto">
                   {qrCodeDataUrl ? (
-                    <img src={qrCodeDataUrl} alt="Google Authenticator QR Code" className="h-48 w-48 rounded-lg" />
+                    <img src={qrCodeDataUrl} alt="Google Authenticator QR Code" className="h-44 w-44 rounded-lg" />
                   ) : (
-                    <div className="h-48 w-48 flex items-center justify-center text-slate-500">
+                    <div className="h-44 w-44 flex items-center justify-center text-slate-500">
                       Generating QR...
                     </div>
                   )}
@@ -367,20 +376,21 @@ export function SecuritySettings() {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-foreground">Or enter key manually:</span>
                     <button
+                      type="button"
                       onClick={handleCopySecret}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
                     >
                       {copiedSecret ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       <span>{copiedSecret ? "Copied!" : "Copy Key"}</span>
                     </button>
                   </div>
-                  <div className="p-3 rounded-lg bg-muted/60 font-mono text-xs text-primary font-bold break-all border border-border select-all text-center tracking-widest">
+                  <div className="p-2.5 rounded-xl bg-secondary/60 font-mono text-xs text-primary font-bold break-all border border-border select-all text-center tracking-widest">
                     {mfaData.secret}
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2 border-t border-border">
-                  <Button onClick={() => setStep(2)} className="gap-1.5">
+                <div className="flex justify-end pt-3 border-t border-border/70">
+                  <Button size="sm" onClick={() => setStep(2)} className="gap-1.5">
                     <span>Next: Save Backup Codes</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -391,13 +401,13 @@ export function SecuritySettings() {
             {/* Step 2: Emergency Recovery Codes */}
             {step === 2 && (
               <div className="space-y-4">
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[11px] leading-relaxed">
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[11px] leading-relaxed">
                   <strong>Save these single-use recovery codes in a safe place.</strong> If you lose access to your phone or authenticator app, these codes are the only way to recover your account.
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs text-foreground bg-secondary/40 p-3 rounded-xl border border-border">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs text-foreground bg-secondary/40 p-3 rounded-xl border border-border/70">
                   {mfaData.backup_codes.map((code, idx) => (
-                    <div key={idx} className="p-2 bg-card rounded border border-border text-center font-bold">
+                    <div key={idx} className="p-2 bg-card rounded-lg border border-border/60 text-center font-bold">
                       {code}
                     </div>
                   ))}
@@ -405,7 +415,7 @@ export function SecuritySettings() {
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button variant="outline" size="sm" onClick={handleCopyCodes} className="gap-1.5">
-                    {copiedCodes ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedCodes ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                     <span>{copiedCodes ? "Codes Copied" : "Copy All Codes"}</span>
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleDownloadCodes} className="gap-1.5">
@@ -414,11 +424,11 @@ export function SecuritySettings() {
                   </Button>
                 </div>
 
-                <div className="flex justify-between pt-2 border-t border-border">
-                  <Button variant="ghost" onClick={() => setStep(1)}>
+                <div className="flex justify-between pt-3 border-t border-border/70">
+                  <Button variant="ghost" size="sm" onClick={() => setStep(1)}>
                     ← Back to QR
                   </Button>
-                  <Button onClick={() => setStep(3)} className="gap-1.5">
+                  <Button size="sm" onClick={() => setStep(3)} className="gap-1.5">
                     <span>Next: Verify Code</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -434,7 +444,7 @@ export function SecuritySettings() {
                 </div>
 
                 {verificationError && (
-                  <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+                  <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>{verificationError}</span>
                   </div>
@@ -445,7 +455,7 @@ export function SecuritySettings() {
                     6-Digit Authenticator Code
                   </label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="text"
                       inputMode="numeric"
@@ -456,16 +466,16 @@ export function SecuritySettings() {
                       placeholder="e.g. 123456"
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\s+/g, ""))}
-                      className="flex h-11 w-full rounded-lg border border-input bg-card pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-10 w-full rounded-lg border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-2 border-t border-border">
-                  <Button variant="ghost" type="button" onClick={() => setStep(2)}>
+                <div className="flex justify-between pt-3 border-t border-border/70">
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setStep(2)}>
                     ← Back to Codes
                   </Button>
-                  <Button type="submit" isLoading={isVerifying} className="gap-2">
+                  <Button type="submit" size="sm" isLoading={isVerifying} className="gap-2">
                     <CheckCircle2 className="h-4 w-4" />
                     <span>Activate 2FA</span>
                   </Button>

@@ -7,24 +7,24 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function Badge({ className, variant = "default", ...props }: BadgeProps) {
   const variants = {
-    default: "border-transparent bg-primary text-primary-foreground",
-    secondary: "border-transparent bg-secondary text-secondary-foreground",
-    outline: "border-border text-foreground",
+    default: "border-transparent bg-primary text-primary-foreground shadow-xs",
+    secondary: "border-border/60 bg-secondary text-secondary-foreground",
+    outline: "border-border text-foreground bg-card/40",
     destructive: "border-transparent bg-destructive text-destructive-foreground",
-    urgent: "border-red-500/20 bg-red-500/10 text-red-500 font-semibold",
-    high: "border-amber-500/20 bg-amber-500/10 text-amber-500 font-semibold",
-    medium: "border-blue-500/20 bg-blue-500/10 text-blue-500",
-    low: "border-slate-500/20 bg-slate-500/10 text-slate-500",
-    admin: "border-purple-500/20 bg-purple-500/10 text-purple-400 font-bold",
-    editor: "border-blue-500/20 bg-blue-500/10 text-blue-400",
-    viewer: "border-slate-500/20 bg-slate-500/10 text-slate-400",
+    urgent: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold",
+    high: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold",
+    medium: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400 font-medium",
+    low: "border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400 font-medium",
+    admin: "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold",
+    editor: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-medium",
+    viewer: "border-zinc-500/30 bg-zinc-500/10 text-zinc-700 dark:text-zinc-400 font-medium",
   };
 
   return (
     <div
       data-slot="badge"
       className={cn(
-        "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+        "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium transition-colors select-none",
         variants[variant],
         className
       )}

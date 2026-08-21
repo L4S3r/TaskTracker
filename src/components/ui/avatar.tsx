@@ -7,6 +7,25 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: "sm" | "md" | "lg";
 }
 
+const GRADIENTS = [
+  "from-blue-500 to-indigo-600 text-white",
+  "from-violet-500 to-purple-600 text-white",
+  "from-emerald-500 to-teal-600 text-white",
+  "from-amber-500 to-orange-600 text-white",
+  "from-rose-500 to-pink-600 text-white",
+  "from-cyan-500 to-blue-600 text-white",
+  "from-indigo-500 to-sky-600 text-white",
+];
+
+function getGradientForName(name?: string) {
+  if (!name) return GRADIENTS[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
+}
+
 export function Avatar({ src, name, size = "md", className, ...props }: AvatarProps) {
   const getInitials = (text?: string) => {
     if (!text) return "U";
@@ -18,17 +37,20 @@ export function Avatar({ src, name, size = "md", className, ...props }: AvatarPr
   };
 
   const sizes = {
-    sm: "h-8 w-8 text-xs",
-    md: "h-10 w-10 text-sm",
-    lg: "h-14 w-14 text-base",
+    sm: "h-7 w-7 text-[10px]",
+    md: "h-9 w-9 text-xs",
+    lg: "h-12 w-12 text-sm",
   };
+
+  const gradientClass = getGradientForName(name);
 
   return (
     <div
       data-slot="avatar"
       className={cn(
-        "relative inline-flex items-center justify-center rounded-full bg-secondary font-semibold text-secondary-foreground overflow-hidden select-none border border-border",
+        "relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold overflow-hidden select-none border border-border/60 shadow-xs",
         sizes[size],
+        !src && `bg-gradient-to-br ${gradientClass}`,
         className
       )}
       {...props}
@@ -36,7 +58,7 @@ export function Avatar({ src, name, size = "md", className, ...props }: AvatarPr
       {src ? (
         <img src={src} alt={name || "User Avatar"} className="h-full w-full object-cover" />
       ) : (
-        <span>{getInitials(name)}</span>
+        <span className="leading-none">{getInitials(name)}</span>
       )}
     </div>
   );

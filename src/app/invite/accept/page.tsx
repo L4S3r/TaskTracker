@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckSquare, Shield, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckSquare, Shield, AlertCircle, CheckCircle2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 function AcceptInviteContent() {
@@ -119,11 +119,14 @@ function AcceptInviteContent() {
     );
   }
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4 sm:p-6">
-      <Card className="w-full max-w-md shadow-xl border-border bg-card">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 sm:p-6">
+      <Card className="w-full max-w-md shadow-2xl border-border/80 bg-card">
         <CardHeader className="space-y-2 text-center pb-5">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md mb-1">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-blue-700 text-primary-foreground shadow-md mb-1">
             <CheckSquare className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl font-bold tracking-tight">Join the Workspace</CardTitle>
@@ -134,7 +137,7 @@ function AcceptInviteContent() {
 
         <CardContent className="space-y-4">
           {/* Clearance Badge Summary */}
-          <div className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2">
+          <div className="rounded-xl border border-border/70 bg-secondary/30 p-3.5 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground font-medium">Invited Email:</span>
               <span className="font-semibold text-foreground">{inviteData?.email}</span>
@@ -152,7 +155,7 @@ function AcceptInviteContent() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+            <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -170,30 +173,50 @@ function AcceptInviteContent() {
 
             <Input
               label="Create Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               placeholder="Minimum 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              endIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              }
             />
 
             <Input
               label="Confirm Password"
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               required
               placeholder="Repeat your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              endIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+                  title={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              }
             />
 
-            <Button type="submit" isLoading={isSubmitting} className="w-full gap-2 mt-2">
+            <Button type="submit" size="lg" isLoading={isSubmitting} className="w-full gap-2 mt-2">
               <span>Accept Invitation & Enter Board</span>
               <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
         </CardContent>
 
-        <CardFooter className="flex justify-center border-t border-border p-4 text-[11px] text-muted-foreground">
+        <CardFooter className="flex justify-center border-t border-border/70 p-4 text-[11px] text-muted-foreground">
           Protected by Auth N&Z Identity & Access Management Gateway
         </CardFooter>
       </Card>

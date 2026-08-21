@@ -11,14 +11,14 @@ import { Avatar } from "@/components/ui/avatar";
 import { TaskModal } from "./task-modal";
 import { TaskDetailModal } from "./task-detail-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Search, ArrowRight, Trash2, CheckCircle2, Clock, AlertTriangle, RefreshCw, Calendar, Users } from "lucide-react";
+import { Plus, Search, ArrowRight, Trash2, CheckCircle2, Clock, AlertTriangle, RefreshCw, Calendar, Users, CheckSquare } from "lucide-react";
 
 
-const COLUMNS: { id: TaskStatus; label: string }[] = [
-  { id: "todo", label: "To Do" },
-  { id: "in_progress", label: "In Progress" },
-  { id: "review", label: "In Review" },
-  { id: "done", label: "Completed" },
+const COLUMNS: { id: TaskStatus; label: string; accentColor: string; badgeBg: string; dotColor: string }[] = [
+  { id: "todo", label: "To Do", accentColor: "border-t-indigo-500", badgeBg: "bg-indigo-500/10 text-indigo-500", dotColor: "bg-indigo-500" },
+  { id: "in_progress", label: "In Progress", accentColor: "border-t-blue-500", badgeBg: "bg-blue-500/10 text-blue-500", dotColor: "bg-blue-500 animate-pulse" },
+  { id: "review", label: "In Review", accentColor: "border-t-purple-500", badgeBg: "bg-purple-500/10 text-purple-500", dotColor: "bg-purple-500" },
+  { id: "done", label: "Completed", accentColor: "border-t-emerald-500", badgeBg: "bg-emerald-500/10 text-emerald-500", dotColor: "bg-emerald-500" },
 ];
 
 function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
@@ -27,7 +27,7 @@ function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
     return {
       type: "completed",
       label: `Completed (${dueDate})`,
-      className: "bg-green-500/10 text-green-500 border-green-500/20",
+      className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     };
   }
 
@@ -40,19 +40,19 @@ function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
     return {
       type: "overdue",
       label: `Overdue by ${Math.abs(diffDays)}d (${dueDate})`,
-      className: "bg-destructive/10 text-destructive border-destructive/30 font-bold animate-pulse",
+      className: "bg-destructive/10 text-destructive border-destructive/30 font-bold",
     };
   } else if (diffDays <= 2) {
     return {
       type: "due-soon",
       label: diffDays === 0 ? `Due Today (${dueDate})` : `Due in ${diffDays}d (${dueDate})`,
-      className: "bg-amber-500/10 text-amber-500 border-amber-500/30 font-semibold",
+      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold",
     };
   } else {
     return {
       type: "upcoming",
       label: `Due ${dueDate}`,
-      className: "bg-muted text-muted-foreground border-border",
+      className: "bg-muted/70 text-muted-foreground border-border/60",
     };
   }
 }
@@ -125,7 +125,6 @@ export function TaskBoard() {
     }
   };
 
-
   const filteredTasks = tasks.filter((t) => {
     const titleMatch = t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false;
     const descMatch = t.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false;
@@ -157,8 +156,21 @@ export function TaskBoard() {
     return matchesSearch && matchesPriority && matchesDeadline;
   });
 
+  const todoCount = tasks.filter((t) => t.status === "todo").length;
+  const inProgressCount = tasks.filter((t) => t.status === "in_progress").length;
+  const reviewCount = tasks.filter((t) => t.status === "review").length;
+  const doneCount = tasks.filter((t) => t.status === "done").length;
+
   const overdueCount = tasks.filter((t) => getDeadlineInfo(t.due_date || t.dueDate, t.status)?.type === "overdue").length;
   const dueSoonCount = tasks.filter((t) => getDeadlineInfo(t.due_date || t.dueDate, t.status)?.type === "due-soon").length;
+
+  const hasActiveFilters = searchQuery !== "" || priorityFilter !== "all" || deadlineFilter !== "all";
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter("all");
+    setDeadlineFilter("all");
+  };
 
   return (
     <div className="space-y-6">
@@ -171,7 +183,7 @@ export function TaskBoard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -179,7 +191,7 @@ export function TaskBoard() {
             className="gap-1.5"
             title="Refresh task board"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </Button>
 
@@ -190,17 +202,71 @@ export function TaskBoard() {
         </div>
       </div>
 
+      {/* Metrics Summary Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Tasks</p>
+            <p className="text-xl font-bold text-foreground mt-0.5">{tasks.length}</p>
+          </div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CheckSquare className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">In Progress</p>
+            <p className="text-xl font-bold text-blue-500 mt-0.5">{inProgressCount}</p>
+          </div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+            <Clock className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Completed</p>
+            <p className="text-xl font-bold text-emerald-500 mt-0.5">{doneCount}</p>
+          </div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+            <CheckCircle2 className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Overdue</p>
+            <p className={`text-xl font-bold mt-0.5 ${overdueCount > 0 ? "text-destructive" : "text-foreground"}`}>
+              {overdueCount}
+            </p>
+          </div>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${overdueCount > 0 ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+            <AlertTriangle className="h-4 w-4" />
+          </div>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 rounded-xl border border-border/80 bg-card shadow-xs">
         <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search tasks, assignees, tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-10 w-full rounded-lg border border-input bg-card/60 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-3 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+              title="Clear search"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
@@ -210,7 +276,7 @@ export function TaskBoard() {
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 rounded-lg border border-input bg-card/60 px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
             >
               <option value="all">All Priorities</option>
               <option value="urgent">Urgent</option>
@@ -226,7 +292,7 @@ export function TaskBoard() {
             <select
               value={deadlineFilter}
               onChange={(e) => setDeadlineFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 rounded-lg border border-input bg-card/60 px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
             >
               <option value="all">All Deliverables</option>
               <option value="has-deadline">Has Deadline</option>
@@ -234,35 +300,66 @@ export function TaskBoard() {
               <option value="overdue">Overdue {overdueCount > 0 ? `(${overdueCount})` : ""}</option>
             </select>
           </div>
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5"
+            >
+              Reset Filters
+            </Button>
+          )}
         </div>
       </div>
 
       {isLoading && tasks.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
+        <div className="flex min-h-[350px] items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
             <p className="text-xs text-muted-foreground">Loading workspace tasks from database...</p>
           </div>
         </div>
+      ) : filteredTasks.length === 0 && tasks.length > 0 ? (
+        /* Empty Filter Results */
+        <div className="flex flex-col items-center justify-center min-h-[300px] rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center space-y-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <Search className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">No tasks match your filters</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Try adjusting your search query, priority criteria, or deadline filters.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
+            Clear Filters
+          </Button>
+        </div>
       ) : (
-        /* Kanban Columns */
+        /* Kanban Columns Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {COLUMNS.map((col) => {
             const colTasks = filteredTasks.filter((t) => t.status === col.id);
             return (
-              <div key={col.id} className="flex flex-col rounded-xl border border-border bg-secondary/30 p-3.5 min-h-[500px]">
+              <div
+                key={col.id}
+                className={`flex flex-col rounded-xl border border-border/80 bg-secondary/30 p-3.5 min-h-[520px] ${col.accentColor}`}
+              >
                 {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/80">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
                   <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
                     <span className="text-xs font-bold uppercase tracking-wider text-foreground/90">{col.label}</span>
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                      {colTasks.length}
-                    </span>
                   </div>
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${col.badgeBg}`}>
+                    {colTasks.length}
+                  </span>
                 </div>
 
                 {/* Tasks List */}
-                <div className="space-y-3 flex-1 overflow-y-auto">
+                <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
                   {colTasks.map((task) => {
                     const dlInfo = getDeadlineInfo(task.due_date || task.dueDate, task.status);
 
@@ -282,9 +379,9 @@ export function TaskBoard() {
                       <Card
                         key={task.id}
                         onClick={() => setSelectedDetailTask(task)}
-                        className="border-border hover:shadow-md hover:border-primary/40 transition-all bg-card cursor-pointer group"
+                        className="border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group"
                       >
-                        <CardHeader className="p-4 pb-2 space-y-2">
+                        <CardHeader className="p-3.5 pb-2 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <Badge variant={task.priority as any}>{task.priority}</Badge>
                             <button
@@ -292,7 +389,7 @@ export function TaskBoard() {
                                 e.stopPropagation();
                                 setTaskToDelete(task);
                               }}
-                              className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                              className="opacity-60 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1 rounded hover:bg-destructive/10 cursor-pointer"
                               title="Delete task"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -304,7 +401,7 @@ export function TaskBoard() {
                           </CardTitle>
                         </CardHeader>
 
-                        <CardContent className="p-4 pt-0 space-y-3">
+                        <CardContent className="p-3.5 pt-0 space-y-2.5">
                           {task.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                               {task.description}
@@ -313,7 +410,7 @@ export function TaskBoard() {
 
                           {/* Deadline Badge */}
                           {dlInfo && (
-                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[10px] ${dlInfo.className}`}>
+                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[10px] ${dlInfo.className}`}>
                               <Calendar className="h-3 w-3 shrink-0" />
                               <span>{dlInfo.label}</span>
                             </div>
@@ -324,7 +421,7 @@ export function TaskBoard() {
                               {task.tags.map((tag) => (
                                 <span
                                   key={tag}
-                                  className="inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                                  className="inline-block rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
                                 >
                                   #{tag}
                                 </span>
@@ -333,11 +430,11 @@ export function TaskBoard() {
                           )}
 
                           {/* Card Footer: Assignee Stack & Next Stage */}
-                          <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
                             {/* Multi-Avatar Stack */}
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               {taskAssignees.length > 0 ? (
-                                <div className="flex items-center -space-x-2">
+                                <div className="flex items-center -space-x-1.5">
                                   {taskAssignees.slice(0, 3).map((a, i) => {
                                     const memberMatch = members.find((m) => m.email.toLowerCase() === a.email.toLowerCase());
                                     const avatarSrc = a.avatar_url || memberMatch?.avatar_url;
@@ -348,6 +445,7 @@ export function TaskBoard() {
                                         src={avatarSrc}
                                         size="sm"
                                         className="ring-2 ring-card"
+                                        title={`${a.name || a.email} (${a.email})`}
                                       />
                                     );
                                   })}
@@ -379,11 +477,11 @@ export function TaskBoard() {
                                       handleStatusChange(task.id, COLUMNS[nextIndex].id);
                                     }
                                   }}
-                                  className="flex items-center gap-1 rounded bg-secondary px-2 py-1 text-[10px] font-semibold text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                                  className="group/btn flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-1 text-[10px] font-semibold text-secondary-foreground hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
                                   title="Move to next stage"
                                 >
                                   <span>Next</span>
-                                  <ArrowRight className="h-3 w-3" />
+                                  <ArrowRight className="h-3 w-3 group-hover/btn:translate-x-0.5 transition-transform" />
                                 </button>
                               )}
                             </div>
@@ -394,7 +492,7 @@ export function TaskBoard() {
                   })}
 
                   {colTasks.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-36 rounded-lg border border-dashed border-border/80 text-muted-foreground p-4 text-center">
+                    <div className="flex flex-col items-center justify-center h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center">
                       <p className="text-xs">No tasks in this stage</p>
                     </div>
                   )}
