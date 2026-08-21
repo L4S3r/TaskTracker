@@ -101,7 +101,7 @@ export function Header() {
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="flex items-center gap-2.5 rounded-full py-1 px-2 hover:bg-muted/70 transition-colors cursor-pointer border border-transparent hover:border-border/60"
+                  className="flex items-center gap-2.5 rounded-full py-1.5 px-2.5 min-h-[44px] hover:bg-muted/70 transition-colors cursor-pointer border border-transparent hover:border-border/60"
                   aria-label="User navigation menu"
                   aria-expanded={showMenu}
                 >
@@ -137,30 +137,30 @@ export function Header() {
                     </div>
 
                     <Link href="/team" className="block w-full">
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[36px]">
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[44px]">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span>Manage Team</span>
                       </button>
                     </Link>
 
                     <Link href="/settings" className="block w-full">
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[36px]">
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[44px]">
                         <Shield className="h-4 w-4 text-muted-foreground" />
                         <span>Security & MFA</span>
                       </button>
                     </Link>
 
-                    <div className="border-t border-border/60 mt-1 pt-1">
+                    <div className="border-t border-border/60 mt-1 pt-1 space-y-0.5">
                       <button
                         onClick={() => logout(false)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 text-left transition-colors cursor-pointer min-h-[36px]"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 text-left transition-colors cursor-pointer min-h-[44px]"
                       >
                         <LogOut className="h-4 w-4" />
                         <span>Log Out</span>
                       </button>
                       <button
                         onClick={() => logout(true)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-left transition-colors cursor-pointer"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-left transition-colors cursor-pointer min-h-[44px]"
                       >
                         <span>Log out everywhere (All devices)</span>
                       </button>
@@ -172,7 +172,7 @@ export function Header() {
               {/* Mobile Hamburger Button */}
               <button
                 onClick={() => setShowMobileNav(!showMobileNav)}
-                className="md:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                className="md:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
                 aria-label="Toggle navigation menu"
               >
                 {showMobileNav ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

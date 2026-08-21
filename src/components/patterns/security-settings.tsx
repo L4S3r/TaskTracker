@@ -315,14 +315,15 @@ export function SecuritySettings() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
-                  step === 1 ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                className={`flex items-center gap-2 font-bold transition-colors cursor-pointer min-h-[44px] px-2.5 py-1.5 rounded-lg ${
+                  step === 1 ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
+                aria-label="Step 1: Scan QR Code"
               >
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                  step === 1 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                  step === 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}>1</span>
-                <span>Scan QR</span>
+                <span className="text-xs">Scan QR</span>
               </button>
 
               <span className="text-muted-foreground/40 text-xs">→</span>
@@ -330,14 +331,15 @@ export function SecuritySettings() {
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
-                  step === 2 ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                className={`flex items-center gap-2 font-bold transition-colors cursor-pointer min-h-[44px] px-2.5 py-1.5 rounded-lg ${
+                  step === 2 ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
+                aria-label="Step 2: Backup Codes"
               >
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                  step === 2 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                  step === 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}>2</span>
-                <span>Backup Codes</span>
+                <span className="text-xs">Backup Codes</span>
               </button>
 
               <span className="text-muted-foreground/40 text-xs">→</span>
@@ -345,29 +347,32 @@ export function SecuritySettings() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className={`flex items-center gap-1.5 font-bold transition-colors cursor-pointer ${
-                  step === 3 ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                className={`flex items-center gap-2 font-bold transition-colors cursor-pointer min-h-[44px] px-2.5 py-1.5 rounded-lg ${
+                  step === 3 ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
+                aria-label="Step 3: Verify TOTP Code"
               >
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                  step === 3 ? "bg-primary text-primary-foreground font-bold" : "bg-muted text-muted-foreground"
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                  step === 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}>3</span>
-                <span>Verify Code</span>
+                <span className="text-xs">Verify Code</span>
               </button>
             </div>
 
             {/* Step 1: Scan QR Code & Secret */}
             {step === 1 && (
               <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-border shadow-inner max-w-xs mx-auto">
+                <div className="flex flex-col items-center justify-center p-4 bg-secondary/40 rounded-2xl border border-border/80 shadow-xs max-w-xs mx-auto">
                   {qrCodeDataUrl ? (
-                    <img src={qrCodeDataUrl} alt="Google Authenticator QR Code" className="h-44 w-44 rounded-lg" />
+                    <div className="p-2.5 bg-white rounded-xl shadow-xs">
+                      <img src={qrCodeDataUrl} alt="Google Authenticator QR Code" className="h-40 w-40 rounded-lg" />
+                    </div>
                   ) : (
-                    <div className="h-44 w-44 flex items-center justify-center text-slate-500">
+                    <div className="h-44 w-44 flex items-center justify-center text-muted-foreground">
                       Generating QR...
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-600 font-semibold mt-2 text-center">
+                  <p className="text-[10px] text-muted-foreground font-semibold mt-2.5 text-center">
                     Point your Google Authenticator camera at this QR code.
                   </p>
                 </div>
@@ -378,19 +383,19 @@ export function SecuritySettings() {
                     <button
                       type="button"
                       onClick={handleCopySecret}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer min-h-[44px] px-2.5 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
                     >
-                      {copiedSecret ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {copiedSecret ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       <span>{copiedSecret ? "Copied!" : "Copy Key"}</span>
                     </button>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-secondary/60 font-mono text-xs text-primary font-bold break-all border border-border select-all text-center tracking-widest">
+                  <div className="p-3 rounded-xl bg-secondary/60 font-mono text-xs text-primary font-bold break-all border border-border select-all text-center tracking-widest">
                     {mfaData.secret}
                   </div>
                 </div>
 
                 <div className="flex justify-end pt-3 border-t border-border/70">
-                  <Button size="sm" onClick={() => setStep(2)} className="gap-1.5">
+                  <Button size="default" onClick={() => setStep(2)} className="gap-1.5">
                     <span>Next: Save Backup Codes</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -407,28 +412,28 @@ export function SecuritySettings() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs text-foreground bg-secondary/40 p-3 rounded-xl border border-border/70">
                   {mfaData.backup_codes.map((code, idx) => (
-                    <div key={idx} className="p-2 bg-card rounded-lg border border-border/60 text-center font-bold">
+                    <div key={idx} className="p-2.5 bg-card rounded-lg border border-border/60 text-center font-bold">
                       {code}
                     </div>
                   ))}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={handleCopyCodes} className="gap-1.5">
-                    {copiedCodes ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  <Button variant="outline" size="default" onClick={handleCopyCodes} className="gap-1.5">
+                    {copiedCodes ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                     <span>{copiedCodes ? "Codes Copied" : "Copy All Codes"}</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadCodes} className="gap-1.5">
-                    <Download className="h-3.5 w-3.5" />
+                  <Button variant="outline" size="default" onClick={handleDownloadCodes} className="gap-1.5">
+                    <Download className="h-4 w-4" />
                     <span>Download (.txt)</span>
                   </Button>
                 </div>
 
                 <div className="flex justify-between pt-3 border-t border-border/70">
-                  <Button variant="ghost" size="sm" onClick={() => setStep(1)}>
+                  <Button variant="ghost" size="default" onClick={() => setStep(1)}>
                     ← Back to QR
                   </Button>
-                  <Button size="sm" onClick={() => setStep(3)} className="gap-1.5">
+                  <Button size="default" onClick={() => setStep(3)} className="gap-1.5">
                     <span>Next: Verify Code</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -455,7 +460,7 @@ export function SecuritySettings() {
                     6-Digit Authenticator Code
                   </label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="text"
                       inputMode="numeric"
@@ -466,16 +471,16 @@ export function SecuritySettings() {
                       placeholder="e.g. 123456"
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\s+/g, ""))}
-                      className="flex h-10 w-full rounded-lg border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+                      className="flex h-11 min-h-[44px] w-full rounded-xl border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
                     />
                   </div>
                 </div>
 
                 <div className="flex justify-between pt-3 border-t border-border/70">
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setStep(2)}>
+                  <Button variant="ghost" size="default" type="button" onClick={() => setStep(2)}>
                     ← Back to Codes
                   </Button>
-                  <Button type="submit" size="sm" isLoading={isVerifying} className="gap-2">
+                  <Button type="submit" size="default" isLoading={isVerifying} className="gap-2">
                     <CheckCircle2 className="h-4 w-4" />
                     <span>Activate 2FA</span>
                   </Button>

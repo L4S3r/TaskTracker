@@ -196,8 +196,9 @@ export function LoginView() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
                   title={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -213,7 +214,7 @@ export function LoginView() {
         <CardFooter className="flex justify-center border-t border-border/70 pt-4 pb-4">
           <p className="text-xs text-muted-foreground">
             Don't have an account?{" "}
-            <Link href="/register" className="font-semibold text-primary hover:underline">
+            <Link href="/register" className="font-semibold text-primary hover:underline p-1 inline-block">
               Create an account
             </Link>
           </p>
@@ -244,7 +245,7 @@ export function LoginView() {
               6-Digit Authenticator or Backup Code
             </label>
             <div className="relative">
-              <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 required
@@ -253,7 +254,7 @@ export function LoginView() {
                 placeholder="e.g. 123456"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value.trim())}
-                className="flex h-10 w-full rounded-lg border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+                className="flex h-11 min-h-[44px] w-full rounded-xl border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
               />
             </div>
           </div>

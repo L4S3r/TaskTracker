@@ -42,18 +42,18 @@ export function Input({
           id={inputId}
           data-slot="input"
           className={cn(
-            "flex h-10 w-full rounded-lg border border-input bg-card/60 px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150",
+            "flex h-11 w-full min-h-[44px] rounded-lg border border-input bg-card/60 px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-150",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            startIcon && "pl-9",
-            endIcon && "pr-9",
+            startIcon && "pl-10",
+            endIcon && "pr-11",
             error && "border-destructive focus-visible:ring-destructive/30 focus-visible:border-destructive",
             className
           )}
           {...props}
         />
         {endIcon && (
-          <div className="absolute right-3 flex items-center text-muted-foreground">
+          <div className="absolute right-0 top-0 bottom-0 flex items-center justify-center min-w-[44px] min-h-[44px] text-muted-foreground">
             {endIcon}
           </div>
         )}

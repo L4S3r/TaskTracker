@@ -29,10 +29,10 @@ export function Button({
   };
 
   const sizes = {
-    default: "h-10 px-4 py-2 text-sm min-h-[40px] sm:min-h-[40px]",
-    sm: "h-8 px-3 text-xs rounded-md min-h-[34px]",
-    lg: "h-11 px-6 text-sm font-semibold rounded-xl min-h-[44px]",
-    icon: "h-10 w-10 p-0 min-h-[40px] min-w-[40px]",
+    default: "h-11 px-4 py-2.5 text-sm min-h-[44px] min-w-[44px]",
+    sm: "h-11 sm:h-10 px-3.5 text-xs rounded-lg min-h-[44px] min-w-[44px]",
+    lg: "h-12 px-6 text-sm font-semibold rounded-xl min-h-[44px]",
+    icon: "h-11 w-11 p-0 min-h-[44px] min-w-[44px]",
   };
 
   return (

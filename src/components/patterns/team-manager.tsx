@@ -257,13 +257,14 @@ export function TeamManager() {
                           {m.email.toLowerCase() !== user?.email?.toLowerCase() ? (
                             <button
                               onClick={() => setMemberToDelete(m.email)}
-                              className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-md hover:bg-destructive/10 cursor-pointer"
+                              className="text-muted-foreground hover:text-destructive transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl hover:bg-destructive/10 cursor-pointer"
                               title="Remove member"
+                              aria-label={`Remove member ${m.name || m.email}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground/80 font-medium px-2 py-0.5 bg-muted rounded">You</span>
+                            <span className="text-[10px] text-muted-foreground/80 font-medium px-2.5 py-1 bg-muted rounded-md inline-block">You</span>
                           )}
                         </td>
                       )}
