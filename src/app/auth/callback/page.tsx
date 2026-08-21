@@ -33,10 +33,11 @@ function OAuthCallbackContent() {
       return;
     }
 
-    if (savedState && state && savedState !== state) {
+    if (!savedState || savedState !== state) {
       setError("OAuth state parameter mismatch (potential CSRF attempt).");
       return;
     }
+
 
     isExecuting.current = true;
     const redirectUri = `${window.location.origin}/auth/callback`;
