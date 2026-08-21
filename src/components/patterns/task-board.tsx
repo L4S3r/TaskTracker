@@ -11,7 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { TaskModal } from "./task-modal";
 import { TaskDetailModal } from "./task-detail-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Search, ArrowRight, Trash2, CheckCircle2, Clock, AlertTriangle, RefreshCw, Calendar, Users, CheckSquare } from "lucide-react";
+import { Plus, Search, ArrowRight, Trash2, CheckCircle2, Clock, AlertTriangle, RefreshCw, Calendar, Users, CheckSquare, ChevronDown, X } from "lucide-react";
 
 
 const COLUMNS: { id: TaskStatus; label: string; accentColor: string; badgeBg: string; dotColor: string }[] = [
@@ -248,57 +248,69 @@ export function TaskBoard() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 rounded-xl border border-border/80 bg-card shadow-xs">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 rounded-xl border border-border/80 bg-card shadow-xs">
+        {/* Search Input */}
         <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             placeholder="Search tasks, assignees, tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 w-full rounded-lg border border-input bg-card/60 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
+            className="h-9 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-3 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-md hover:bg-muted/70 cursor-pointer transition-colors"
               title="Clear search"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
+        {/* Filter Controls Group */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
           {/* Priority Select */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap uppercase">Priority:</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-card/60 px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap uppercase tracking-wider">
+              Priority:
+            </span>
+            <div className="relative">
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-background dark:bg-slate-900/80 pl-3 pr-7 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors appearance-none [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">🔴 Urgent</option>
+                <option value="high">🟠 High</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="low">⚪ Low</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-3 h-3 w-3 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
 
           {/* Deadline Filter */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap uppercase">Deadlines:</span>
-            <select
-              value={deadlineFilter}
-              onChange={(e) => setDeadlineFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-card/60 px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors"
-            >
-              <option value="all">All Deliverables</option>
-              <option value="has-deadline">Has Deadline</option>
-              <option value="due-soon">Due Soon {dueSoonCount > 0 ? `(${dueSoonCount})` : ""}</option>
-              <option value="overdue">Overdue {overdueCount > 0 ? `(${overdueCount})` : ""}</option>
-            </select>
+            <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap uppercase tracking-wider">
+              Deadlines:
+            </span>
+            <div className="relative">
+              <select
+                value={deadlineFilter}
+                onChange={(e) => setDeadlineFilter(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-background dark:bg-slate-900/80 pl-3 pr-7 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors appearance-none [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
+              >
+                <option value="all">All Deliverables</option>
+                <option value="has-deadline">Has Deadline</option>
+                <option value="due-soon">Due Soon {dueSoonCount > 0 ? `(${dueSoonCount})` : ""}</option>
+                <option value="overdue">Overdue {overdueCount > 0 ? `(${overdueCount})` : ""}</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-3 h-3 w-3 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
 
           {hasActiveFilters && (
@@ -306,9 +318,10 @@ export function TaskBoard() {
               variant="ghost"
               size="sm"
               onClick={handleResetFilters}
-              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5"
+              className="text-xs text-muted-foreground hover:text-foreground h-9 px-2.5 gap-1"
             >
-              Reset Filters
+              <X className="h-3.5 w-3.5" />
+              <span>Reset</span>
             </Button>
           )}
         </div>

@@ -9,6 +9,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { CheckSquare, Users, Shield, LogOut, Menu, X, ChevronDown } from "lucide-react";
 
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+
 export function Header() {
   const { user, isAdmin, logout } = useAuth();
   const pathname = usePathname();
@@ -48,7 +50,7 @@ export function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md transition-all">
+    <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/90 backdrop-blur-md transition-colors">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand & Desktop Navigation */}
         <div className="flex items-center gap-6">
@@ -90,8 +92,9 @@ export function Header() {
           )}
         </div>
 
-        {/* User profile / Auth Actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* User profile / Theme / Auth Actions */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <ThemeToggle />
           {user ? (
             <>
               {/* Profile Dropdown Container */}
@@ -114,9 +117,9 @@ export function Header() {
 
                 {showMenu && (
                   <div
-                    className="absolute right-0 mt-2 w-64 rounded-xl border border-border bg-card p-2 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 duration-150"
+                    className="absolute right-0 mt-2 w-64 rounded-xl border border-border/80 bg-card p-2 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 duration-150"
                   >
-                    <div className="px-3 py-2.5 border-b border-border mb-1 bg-muted/20 rounded-lg">
+                    <div className="px-3 py-2.5 border-b border-border/60 mb-1 bg-muted/20 rounded-lg">
                       <p className="text-xs font-bold text-foreground truncate">{displayName}</p>
                       <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
                       <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -134,20 +137,20 @@ export function Header() {
                     </div>
 
                     <Link href="/team" className="block w-full">
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted text-left transition-colors cursor-pointer min-h-[36px]">
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[36px]">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span>Manage Team</span>
                       </button>
                     </Link>
 
                     <Link href="/settings" className="block w-full">
-                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted text-left transition-colors cursor-pointer min-h-[36px]">
+                      <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/70 text-left transition-colors cursor-pointer min-h-[36px]">
                         <Shield className="h-4 w-4 text-muted-foreground" />
                         <span>Security & MFA</span>
                       </button>
                     </Link>
 
-                    <div className="border-t border-border mt-1 pt-1">
+                    <div className="border-t border-border/60 mt-1 pt-1">
                       <button
                         onClick={() => logout(false)}
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 text-left transition-colors cursor-pointer min-h-[36px]"
@@ -192,7 +195,7 @@ export function Header() {
 
       {/* Mobile Drawer Navigation */}
       {user && showMobileNav && (
-        <div className="md:hidden border-t border-border bg-card p-4 space-y-2 animate-in slide-in-from-top-2 duration-150 shadow-xl">
+        <div className="md:hidden border-t border-border/80 bg-card p-4 space-y-2 animate-in slide-in-from-top-2 duration-150 shadow-xl">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
