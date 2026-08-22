@@ -213,7 +213,7 @@ export function LoginView() {
 
         <CardFooter className="flex justify-center border-t border-border/70 pt-4 pb-4">
           <p className="text-xs text-muted-foreground">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="font-semibold text-primary hover:underline p-1 inline-block">
               Create an account
             </Link>
