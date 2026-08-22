@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api";
 import { AuditLog } from "@/lib/tasks-store";
+import { fetchWorkspaceAuditLogs, fetchGlobalAuditLogs } from "@/services/audit-service";
+import { AuditLogTable } from "@/components/patterns/audit-log-table";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import {
   Activity,
   Shield,
@@ -15,15 +17,14 @@ import {
   RefreshCw,
   Search,
   ChevronDown,
-  ChevronRight,
-  Filter,
+  Building2,
+  Globe2,
+  Table as TableIcon,
+  List,
   Terminal,
-  Clock,
-  User,
-  Globe,
-  AlertCircle,
   Copy,
   Check,
+  AlertCircle,
 } from "lucide-react";
 
 export function AuditLogsView() {
@@ -32,59 +33,72 @@ export function AuditLogsView() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Scope Toggle: "workspace" vs "global" (Superadmin organization compliance console)
+  const [scope, setScope] = useState<"workspace" | "global">("workspace");
+
+  // View Display Mode: "table" vs "timeline"
+  const [viewMode, setViewMode] = useState<"table" | "timeline">("table");
+
   // Filters
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Expanded Log Drawer
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
+  // Inspect Modal State
+  const [inspectingLog, setInspectingLog] = useState<AuditLog | null>(null);
+  const [copiedLogJson, setCopiedLogJson] = useState(false);
 
-  const fetchAuditLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
     setError(null);
 
     const wsId = activeWorkspace?.id;
     try {
-      if (wsId) {
-        const res = await api.getWorkspaceAuditLogs(token, wsId, {
-          limit: 50,
+      if (scope === "workspace" && wsId) {
+        const fetched = await fetchWorkspaceAuditLogs(token, wsId, {
+          limit: 100,
           offset: 0,
           event_type: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
           severity: severityFilter !== "all" ? severityFilter : undefined,
         });
-        setLogs(res.logs || []);
+        setLogs(fetched);
       } else {
-        const res = await api.getAuditLogs(token, 50, 0);
-        setLogs(res.logs || []);
+        const fetched = await fetchGlobalAuditLogs(token, {
+          limit: 100,
+          offset: 0,
+          event_type: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
+          severity: severityFilter !== "all" ? severityFilter : undefined,
+          workspace_id: scope === "workspace" && wsId ? wsId : undefined,
+        });
+        setLogs(fetched);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to load audit logs from security gateway.");
+      setError(err.message || "Failed to load audit telemetry from security gateway.");
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeWorkspace?.id, eventTypeFilter, severityFilter]);
+  }, [token, activeWorkspace?.id, scope, eventTypeFilter, severityFilter]);
 
   // Immediate cache invalidation on workspace switch: clear previous workspace's audit telemetry
   useEffect(() => {
     setLogs([]);
     setIsLoading(true);
     setError(null);
-    fetchAuditLogs();
-  }, [activeWorkspace?.id, fetchAuditLogs]);
+    fetchLogs();
+  }, [activeWorkspace?.id, scope, fetchLogs]);
 
-  const handleCopyJson = (log: AuditLog, id: string) => {
-    navigator.clipboard.writeText(JSON.stringify(log, null, 2));
-    setCopiedLogId(id);
-    setTimeout(() => setCopiedLogId(null), 2000);
+  const handleCopyJson = (payload: any) => {
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    setCopiedLogJson(true);
+    setTimeout(() => setCopiedLogJson(false), 2000);
   };
 
   const filteredLogs = logs.filter((log) => {
     const eventText = (log.event_type || log.event || log.action || "").toLowerCase();
-    const actorText = (log.actor_email || log.actor || log.actor_id || "").toLowerCase();
+    const actorText = (log.subject_id || log.actor_email || log.actor || log.actor_id || "").toLowerCase();
     const ipText = (log.ip_address || log.ip || "").toLowerCase();
+    const wsText = (log.workspace_id || "").toLowerCase();
     const detailsText = log.details || log.metadata ? JSON.stringify(log.details || log.metadata).toLowerCase() : "";
 
     const matchesSearch =
@@ -92,6 +106,7 @@ export function AuditLogsView() {
       eventText.includes(searchQuery.toLowerCase()) ||
       actorText.includes(searchQuery.toLowerCase()) ||
       ipText.includes(searchQuery.toLowerCase()) ||
+      wsText.includes(searchQuery.toLowerCase()) ||
       detailsText.includes(searchQuery.toLowerCase());
 
     const logSeverity = (log.severity || "INFO").toUpperCase();
@@ -102,13 +117,6 @@ export function AuditLogsView() {
 
     return matchesSearch && matchesSeverity && matchesEventType;
   });
-
-  const getSeverityBadgeVariant = (severity?: string): "info" | "warning" | "critical" => {
-    const s = (severity || "INFO").toUpperCase();
-    if (s === "CRITICAL" || s === "ERROR") return "critical";
-    if (s === "WARNING" || s === "WARN") return "warning";
-    return "info";
-  };
 
   if (!isAdmin) {
     return (
@@ -138,20 +146,52 @@ export function AuditLogsView() {
               Security Audit Telemetry
             </h1>
             <Badge variant="superadmin" className="text-xs">
-              Immutable Log
+              RFC 5424 Immutable Stream
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Live compliance records of workspace mutations, credential events, and access decisions in{" "}
-            <strong>{activeWorkspace?.name || "current workspace"}</strong>.
+            {scope === "workspace"
+              ? `Workspace mutation logs, member lifecycle events, and access decisions for ${activeWorkspace?.name || "the current workspace"}.`
+              : "Organization-wide compliance console across all tenant workspaces & global authentication events."}
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {/* Scope Toggle (For Superadmins) */}
+          {isSuperAdmin && (
+            <div className="flex items-center rounded-xl bg-secondary/80 p-1 border border-border/70 text-xs">
+              <button
+                type="button"
+                onClick={() => setScope("workspace")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  scope === "workspace"
+                    ? "bg-card text-foreground shadow-xs border border-border/60"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                <span>Workspace Scope</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope("global")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  scope === "global"
+                    ? "bg-card text-foreground shadow-xs border border-border/60"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Globe2 className="h-3.5 w-3.5 text-primary" />
+                <span>Organization Console</span>
+              </button>
+            </div>
+          )}
+
+          {/* Refresh Button */}
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchAuditLogs}
+            onClick={fetchLogs}
             className="gap-1.5"
             title="Refresh telemetry"
           >
@@ -162,7 +202,7 @@ export function AuditLogsView() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium animate-in fade-in-50">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -174,7 +214,7 @@ export function AuditLogsView() {
           <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by actor, IP, event, details..."
+            placeholder="Search by subject, IP, event, metadata..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-11 min-h-[44px] w-full rounded-xl border border-input bg-background dark:bg-slate-900/80 pl-10 pr-4 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
@@ -195,7 +235,7 @@ export function AuditLogsView() {
               >
                 <option value="all">All Severities</option>
                 <option value="INFO">🔵 INFO</option>
-                <option value="WARNING">🟡 WARNING</option>
+                <option value="WARNING">🟡 WARN / WARNING</option>
                 <option value="CRITICAL">🔴 CRITICAL</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-4 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -218,6 +258,7 @@ export function AuditLogsView() {
                 <option value="MEMBER">Member Events</option>
                 <option value="TASK">Task Deliverable Events</option>
                 <option value="ACCESS">Access & Auth Decisions</option>
+                <option value="AUTH">Authentication Events</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-4 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             </div>
@@ -225,127 +266,73 @@ export function AuditLogsView() {
         </div>
       </div>
 
-      {/* Audit Telemetry Timeline Table */}
+      {/* Main Audit Telemetry Table Component */}
       <Card className="border-border/80 shadow-sm bg-card overflow-hidden">
-        <CardHeader className="p-4 sm:p-5 pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                <span>Security Events Log ({filteredLogs.length})</span>
-              </CardTitle>
-              <CardDescription>RFC 5424 compliant structured audit stream.</CardDescription>
-            </div>
+        <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              <span>
+                {scope === "workspace" ? "Workspace Audit Events" : "Organization Compliance Stream"} ({filteredLogs.length})
+              </span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {scope === "workspace"
+                ? `Endpoint: GET /workspaces/${activeWorkspace?.id || "id"}/audit-logs`
+                : "Endpoint: GET /audit/logs"}
+            </CardDescription>
           </div>
         </CardHeader>
 
         <CardContent className="p-0">
           {isLoading && logs.length === 0 ? (
-            <div className="flex min-h-[220px] items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
-            </div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center min-h-[200px] p-8 text-center text-muted-foreground space-y-2">
-              <Shield className="h-8 w-8 text-muted-foreground/60" />
-              <p className="text-xs font-semibold text-foreground">No audit telemetry records match the filter.</p>
+            <div className="flex min-h-[220px] items-center justify-center gap-2 text-xs text-muted-foreground">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span>Streaming audit telemetry...</span>
             </div>
           ) : (
-            <div className="divide-y border-t border-border/60 divide-border/60">
-              {filteredLogs.map((log, idx) => {
-                const logId = log.id || `log-${idx}`;
-                const isExpanded = expandedLogId === logId;
-                const eventName = log.event_type || log.event || log.action || "SECURITY_EVENT";
-                const timestamp = log.created_at || log.timestamp || new Date().toISOString();
-                const severity = (log.severity || "INFO").toUpperCase();
-                const actor = log.actor_email || log.actor || log.actor_id || "System Gateway";
-                const ip = log.ip_address || log.ip || "127.0.0.1";
-                const rawPayload = log.details || log.metadata || log;
-
-                return (
-                  <div key={logId} className="transition-colors hover:bg-muted/30">
-                    <div
-                      onClick={() => setExpandedLogId(isExpanded ? null : logId)}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
-                    >
-                      <div className="flex items-start sm:items-center gap-3">
-                        <div className="mt-0.5 sm:mt-0">
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4 text-primary shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-xs font-bold text-foreground">{eventName}</span>
-                            <Badge variant={getSeverityBadgeVariant(severity)} className="text-[9px] px-1.5 py-0 uppercase">
-                              {severity}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{actor}</span>
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              <span className="font-mono">{ip}</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-center text-xs text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5 shrink-0" />
-                        <span className="font-mono text-[11px]">
-                          {new Date(timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Expandable JSON Details Drawer */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 pt-1 animate-in fade-in-50 duration-150">
-                        <div className="rounded-xl border border-border/80 bg-secondary/50 p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
-                              <Terminal className="h-3.5 w-3.5 text-primary" />
-                              <span>Structured Audit Payload</span>
-                            </span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyJson(rawPayload, logId);
-                              }}
-                              className="h-8 text-xs gap-1.5 py-1 px-2.5"
-                            >
-                              {copiedLogId === logId ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                              <span>{copiedLogId === logId ? "Copied" : "Copy JSON"}</span>
-                            </Button>
-                          </div>
-
-                          <pre className="p-3 rounded-lg bg-background font-mono text-[11px] text-foreground/90 overflow-x-auto custom-scrollbar border border-border/60">
-                            {JSON.stringify(rawPayload, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <AuditLogTable logs={filteredLogs} onInspectJson={(log) => setInspectingLog(log)} />
           )}
         </CardContent>
       </Card>
+
+      {/* Detailed JSON Inspector Modal */}
+      <Modal
+        isOpen={Boolean(inspectingLog)}
+        onClose={() => setInspectingLog(null)}
+        title="Audit Event Details"
+        description="Structured JSON metadata recorded by the Auth N&Z security telemetry pipeline."
+      >
+        {inspectingLog && (
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-foreground">
+                {inspectingLog.event_type || inspectingLog.event || "SECURITY_EVENT"}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleCopyJson(inspectingLog)}
+                className="h-8 text-xs gap-1.5 px-2.5"
+              >
+                {copiedLogJson ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copiedLogJson ? "Copied" : "Copy Full Event"}</span>
+              </Button>
+            </div>
+
+            <pre className="p-3.5 rounded-xl bg-secondary/60 font-mono text-xs text-foreground overflow-x-auto custom-scrollbar border border-border/70 max-h-80 select-all">
+              {JSON.stringify(inspectingLog, null, 2)}
+            </pre>
+
+            <div className="flex justify-end pt-2 border-t border-border/60">
+              <Button size="sm" onClick={() => setInspectingLog(null)}>
+                Close Inspector
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

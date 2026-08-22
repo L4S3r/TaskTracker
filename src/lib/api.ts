@@ -319,7 +319,7 @@ class ApiClient {
     token: string,
     workspaceId: string,
     params?: { limit?: number; offset?: number; event_type?: string; severity?: string }
-  ): Promise<{ status: string; count: number; logs: AuditLog[] }> {
+  ): Promise<{ status: string; count: number; logs: AuditLog[]; audit_logs: AuditLog[] }> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.offset !== undefined) searchParams.append("offset", params.offset.toString());
@@ -332,8 +332,9 @@ class ApiClient {
       headers: this.getHeaders(token, workspaceId),
     });
     const data = await this.handleResponse<any>(res);
-    const logs = Array.isArray(data) ? data : data.logs || [];
-    return { status: "SUCCESS", count: logs.length, logs };
+    // Defensive key check: supports both 'audit_logs' and 'logs' or raw array
+    const logs: AuditLog[] = Array.isArray(data) ? data : data.audit_logs || data.logs || [];
+    return { status: "SUCCESS", count: logs.length, logs, audit_logs: logs };
   }
 
   // =========================================================================
@@ -598,23 +599,46 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-  async getAuditLogs(token: string, limit: number = 50, offset: number = 0): Promise<{
+  async getAuditLogs(
+    token: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{
     status: string;
     count: number;
-    logs: any[];
+    logs: AuditLog[];
+    audit_logs: AuditLog[];
   }> {
     if (this.activeWorkspaceId) {
       try {
         return await this.getWorkspaceAuditLogs(token, this.activeWorkspaceId, { limit, offset });
       } catch {
-        // Fallback
+        // Fallback to global endpoint
       }
     }
-    const res = await fetch(`${API_BASE}/audit/logs?limit=${limit}&offset=${offset}`, {
+    return this.getGlobalAuditLogs(token, { limit, offset });
+  }
+
+  async getGlobalAuditLogs(
+    token: string,
+    params?: { limit?: number; offset?: number; severity?: string; event_type?: string; workspace_id?: string }
+  ): Promise<{ status: string; count: number; logs: AuditLog[]; audit_logs: AuditLog[] }> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.offset !== undefined) searchParams.append("offset", params.offset.toString());
+    if (params?.event_type && params.event_type !== "all") searchParams.append("event_type", params.event_type);
+    if (params?.severity && params.severity !== "all") searchParams.append("severity", params.severity);
+    if (params?.workspace_id && params.workspace_id !== "all") searchParams.append("workspace_id", params.workspace_id);
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    const res = await fetch(`${API_BASE}/audit/logs${query}`, {
       method: "GET",
       headers: this.getHeaders(token),
     });
-    return this.handleResponse(res);
+    const data = await this.handleResponse<any>(res);
+    // Defensive key check: supports both 'logs' and 'audit_logs' or raw array
+    const logs: AuditLog[] = Array.isArray(data) ? data : data.logs || data.audit_logs || [];
+    return { status: "SUCCESS", count: logs.length, logs, audit_logs: logs };
   }
 
   // =========================================================================

@@ -62,20 +62,23 @@ export interface WorkspaceMember extends TeamMember {}
 
 export interface AuditLog {
   id?: string;
+  timestamp?: string;
+  created_at?: string;
   event_type?: string;
   event?: string;
-  action?: string;
   severity?: "INFO" | "WARNING" | "CRITICAL" | "info" | "warning" | "critical";
-  actor_email?: string;
-  actor?: string;
-  actor_id?: string;
-  ip_address?: string;
-  ip?: string;
-  user_agent?: string;
-  created_at?: string;
-  timestamp?: string;
-  details?: Record<string, any>;
-  metadata?: Record<string, any>;
+  subject_id?: string | null;
+  actor_email?: string | null;
+  actor?: string | null;
+  actor_id?: string | null;
+  action?: string | null;
+  resource?: string | null;
+  ip_address?: string | null;
+  ip?: string | null;
+  user_agent?: string | null;
+  workspace_id?: string | null;
+  metadata?: Record<string, any> | string | null;
+  details?: Record<string, any> | string | null;
 }
 
 export interface TrustedDevice {
