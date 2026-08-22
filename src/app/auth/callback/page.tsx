@@ -4,10 +4,11 @@ import React, { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, LoginResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { AlertCircle, KeyRound, CheckCircle2 } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { MfaModal } from "@/components/patterns/mfa-modal";
 
 function OAuthCallbackContent() {
   const router = useRouter();
@@ -15,8 +16,8 @@ function OAuthCallbackContent() {
   const { loginSuccess } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [mfaChallenge, setMfaChallenge] = useState<{ userId: string; challengeId: string } | null>(null);
-  const [mfaCode, setMfaCode] = useState("");
   const [isVerifyingMFA, setIsVerifyingMFA] = useState(false);
+  const [mfaError, setMfaError] = useState<string | null>(null);
   const isExecuting = useRef<boolean>(false);
 
   useEffect(() => {
@@ -37,7 +38,6 @@ function OAuthCallbackContent() {
       setError("OAuth state parameter mismatch (potential CSRF attempt).");
       return;
     }
-
 
     isExecuting.current = true;
     const redirectUri = `${window.location.origin}/auth/callback`;
@@ -63,15 +63,14 @@ function OAuthCallbackContent() {
       });
   }, [searchParams, router, loginSuccess]);
 
-  const handleCompleteOAuthMFA = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mfaChallenge || !mfaCode.trim()) return;
+  const handleCompleteOAuthMFA = async (code: string) => {
+    if (!mfaChallenge) return;
 
     setIsVerifyingMFA(true);
-    setError(null);
+    setMfaError(null);
 
     try {
-      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, mfaCode.trim());
+      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code);
       if (res.status === "SUCCESS") {
         loginSuccess(res);
         localStorage.removeItem("oauth_provider");
@@ -80,7 +79,7 @@ function OAuthCallbackContent() {
         router.replace("/");
       }
     } catch (err: any) {
-      setError(err.message || "Invalid MFA code. Check Google Authenticator or use a backup code.");
+      setMfaError(err.message || "Invalid verification code. Check Google Authenticator or use a backup code.");
     } finally {
       setIsVerifyingMFA(false);
     }
@@ -88,71 +87,45 @@ function OAuthCallbackContent() {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6 text-center border-border/80 shadow-2xl bg-card">
-        <CardHeader className="space-y-3">
-          {mfaChallenge ? (
-            <>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground mx-auto shadow-md">
-                <KeyRound className="h-6 w-6" />
-              </div>
-              <CardTitle className="text-lg font-bold">Two-Factor Authentication Required</CardTitle>
-              <CardDescription className="text-xs">
-                Your account is protected by 2FA. Enter the 6-digit code from Google Authenticator to complete social sign-in.
-              </CardDescription>
-
-              <form onSubmit={handleCompleteOAuthMFA} className="space-y-4 pt-2 text-left">
-                {error && (
-                  <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    autoFocus
-                    required
-                    placeholder="e.g. 123456"
-                    value={mfaCode}
-                    onChange={(e) => setMfaCode(e.target.value.replace(/\s+/g, ""))}
-                    className="flex h-10 w-full rounded-lg border border-input bg-card/60 px-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
-                  />
+      {mfaChallenge ? (
+        <MfaModal
+          isOpen={true}
+          onClose={() => {
+            setMfaChallenge(null);
+            router.push("/login");
+          }}
+          onVerify={handleCompleteOAuthMFA}
+          isLoading={isVerifyingMFA}
+          error={mfaError}
+          title="Two-Factor Social Verification"
+          description="Complete sign-in by entering the 6-digit code from your authenticator app."
+        />
+      ) : (
+        <Card className="w-full max-w-md p-6 text-center border-border/80 shadow-2xl bg-card">
+          <CardHeader className="space-y-3">
+            {error ? (
+              <>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mx-auto">
+                  <AlertCircle className="h-6 w-6" />
                 </div>
-
-                <Button type="submit" size="lg" isLoading={isVerifyingMFA} className="w-full gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Verify & Sign In</span>
-                </Button>
-              </form>
-            </>
-          ) : error ? (
-            <>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mx-auto">
-                <AlertCircle className="h-6 w-6" />
+                <CardTitle className="text-lg font-bold text-destructive">Authentication Error</CardTitle>
+                <CardDescription className="text-xs">{error}</CardDescription>
+                <Link href="/login" className="block pt-2">
+                  <Button variant="outline" className="w-full">
+                    Return to Sign In
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-sm font-semibold text-foreground">Completing authentication handshake...</p>
+                <p className="text-xs text-muted-foreground">Exchanging cryptographic tokens with identity gateway.</p>
               </div>
-              <CardTitle className="text-lg font-bold text-destructive">Authentication Error</CardTitle>
-              <CardDescription className="text-xs">{error}</CardDescription>
-              <Link href="/login" className="block pt-2">
-                <Button variant="outline" className="w-full">
-                  Return to Sign In
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <div className="h-10 w-10 animate-spin rounded-full border-3 border-primary border-t-transparent mx-auto" />
-              <CardTitle className="text-base font-bold">Completing Social Authentication...</CardTitle>
-              <CardDescription className="text-xs">
-                Exchanging PKCE cryptographic proof and verifying identity with Auth N&Z.
-              </CardDescription>
-            </>
-          )}
-        </CardHeader>
-      </Card>
+            )}
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 }

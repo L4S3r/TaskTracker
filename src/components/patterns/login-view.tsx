@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Modal } from "@/components/ui/modal";
+import { MfaModal } from "@/components/patterns/mfa-modal";
 import { CheckSquare, Shield, KeyRound, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export function LoginView() {
@@ -23,7 +23,6 @@ export function LoginView() {
 
   // MFA Challenge State
   const [mfaChallenge, setMfaChallenge] = useState<{ userId: string; challengeId: string } | null>(null);
-  const [mfaCode, setMfaCode] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
   const [mfaError, setMfaError] = useState<string | null>(null);
 
@@ -61,22 +60,21 @@ export function LoginView() {
     }
   };
 
-  const handleCompleteMFA = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCompleteMFA = async (code: string) => {
     if (!mfaChallenge) return;
 
     setMfaLoading(true);
     setMfaError(null);
 
     try {
-      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, mfaCode);
+      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code);
       if (res.status === "SUCCESS") {
         loginSuccess(res);
         setMfaChallenge(null);
         router.push("/");
       }
     } catch (err: any) {
-      setMfaError(err.message || "Invalid MFA code. Check your authenticator app or backup codes.");
+      setMfaError(err.message || "Invalid verification code. Check your authenticator app or backup codes.");
     } finally {
       setMfaLoading(false);
     }
@@ -222,48 +220,13 @@ export function LoginView() {
       </Card>
 
       {/* MFA TOTP Challenge Modal */}
-      <Modal
+      <MfaModal
         isOpen={Boolean(mfaChallenge)}
         onClose={() => setMfaChallenge(null)}
-        title="Multi-Factor Verification Required"
-        description="Enter the 6-digit verification code from your authenticator app (Google Authenticator) or an emergency recovery code."
-      >
-        <form onSubmit={handleCompleteMFA} className="space-y-4 pt-1">
-          {mfaError && (
-            <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{mfaError}</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-center p-4 bg-secondary/40 rounded-2xl border border-border/70">
-            <Shield className="h-8 w-8 text-primary" />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
-              6-Digit Authenticator or Backup Code
-            </label>
-            <div className="relative">
-              <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                required
-                autoFocus
-                maxLength={12}
-                placeholder="e.g. 123456"
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value.trim())}
-                className="flex h-11 min-h-[44px] w-full rounded-xl border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
-              />
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full" size="lg" isLoading={mfaLoading}>
-            Verify Code & Enter
-          </Button>
-        </form>
-      </Modal>
+        onVerify={handleCompleteMFA}
+        isLoading={mfaLoading}
+        error={mfaError}
+      />
     </div>
   );
 }

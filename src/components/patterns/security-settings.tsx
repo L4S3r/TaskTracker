@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { OtpInput } from "@/components/ui/otp-input";
 import QRCode from "qrcode";
 import {
   Shield,
@@ -455,25 +456,24 @@ export function SecuritySettings() {
                   </div>
                 )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
-                    6-Digit Authenticator Code
+                <div className="space-y-2.5">
+                  <label className="block text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Enter 6-Digit Authenticator Code
                   </label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={8}
-                      autoFocus
-                      required
-                      placeholder="e.g. 123456"
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value.replace(/\s+/g, ""))}
-                      className="flex h-11 min-h-[44px] w-full rounded-xl border border-input bg-card/60 pl-10 pr-3 text-center text-lg font-mono font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
-                    />
-                  </div>
+                  <OtpInput
+                    length={6}
+                    value={verificationCode}
+                    onChange={setVerificationCode}
+                    onComplete={(code) => {
+                      setVerificationCode(code);
+                    }}
+                    disabled={isVerifying}
+                    autoFocus={true}
+                    hasError={Boolean(verificationError)}
+                  />
+                  <p className="text-[11px] text-center text-muted-foreground">
+                    Codes rotate every 30 seconds.
+                  </p>
                 </div>
 
                 <div className="flex justify-between pt-3 border-t border-border/70">
