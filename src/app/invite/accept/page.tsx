@@ -28,6 +28,8 @@ function AcceptInviteContent() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isLoadingVerify, setIsLoadingVerify] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,9 +120,6 @@ function AcceptInviteContent() {
       </div>
     );
   }
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 sm:p-6">
