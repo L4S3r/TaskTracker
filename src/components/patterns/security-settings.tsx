@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { OtpInput } from "@/components/ui/otp-input";
 import QRCode from "qrcode";
@@ -264,19 +265,33 @@ export function SecuritySettings() {
       {/* Security Overview & 2FA Status Banner */}
       <Card className="border-border/80 bg-card shadow-sm">
         <CardHeader className="p-4 sm:p-5 pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base font-bold">Authentication Clearance</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Avatar name={user?.metadata?.name || user?.username} size="md">
+                <AvatarImage src={user?.metadata?.avatar_url} alt={user?.username} />
+                <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase() || "US"}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-foreground">
+                    {user?.metadata?.name || user?.username}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    @{user?.username}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {user?.email} &bull; Clearance: <strong className="text-primary font-semibold">{user?.roles?.join(", ") || "Standard"}</strong>
+                </span>
+              </div>
             </div>
-            <Badge variant={isMfaActive ? "superadmin" : "outline"} className="text-xs">
-              {isMfaActive ? "2FA Hardened" : "Password Only"}
-            </Badge>
+
+            <div className="flex items-center gap-2">
+              <Badge variant={isMfaActive ? "superadmin" : "outline"} className="text-xs">
+                {isMfaActive ? "2FA Hardened" : "Password Only"}
+              </Badge>
+            </div>
           </div>
-          <CardDescription>
-            Account: <strong className="text-foreground font-semibold">{user?.email}</strong> &bull; Clearance Level:{" "}
-            <span className="font-semibold text-primary">{user?.roles?.join(", ") || "Standard"}</span>
-          </CardDescription>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-5 pt-0 space-y-4">

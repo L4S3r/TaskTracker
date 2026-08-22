@@ -26,7 +26,54 @@ function getGradientForName(name?: string) {
   return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
 }
 
-export function Avatar({ src, name, size = "md", className, ...props }: AvatarProps) {
+export function AvatarImage({
+  src,
+  alt = "Avatar",
+  className,
+  ...props
+}: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [hasError, setHasError] = React.useState(false);
+  if (!src || hasError) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+      className={cn("h-full w-full object-cover", className)}
+      {...props}
+    />
+  );
+}
+
+export function AvatarFallback({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      className={cn(
+        "flex h-full w-full items-center justify-center font-semibold leading-none",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Avatar({
+  src,
+  name,
+  size = "md",
+  className,
+  children,
+  ...props
+}: AvatarProps) {
+  const [imgError, setImgError] = React.useState(false);
+
   const getInitials = (text?: string) => {
     if (!text) return "U";
     const parts = text.trim().split(" ");
@@ -50,13 +97,21 @@ export function Avatar({ src, name, size = "md", className, ...props }: AvatarPr
       className={cn(
         "relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold overflow-hidden select-none border border-border/60 shadow-xs",
         sizes[size],
-        !src && `bg-gradient-to-br ${gradientClass}`,
+        (!src || imgError) && `bg-gradient-to-br ${gradientClass}`,
         className
       )}
       {...props}
     >
-      {src ? (
-        <img src={src} alt={name || "User Avatar"} className="h-full w-full object-cover" />
+      {children ? (
+        children
+      ) : src && !imgError ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={name || "User Avatar"}
+          onError={() => setImgError(true)}
+          className="h-full w-full object-cover"
+        />
       ) : (
         <span className="leading-none">{getInitials(name)}</span>
       )}
