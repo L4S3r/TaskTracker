@@ -38,10 +38,37 @@ function parseMetadata(rawMetadata: any): Record<string, any> {
 
 export function normalizeUser(rawUser: any): UserProfile | null {
   if (!rawUser) return null;
+  const metadata = parseMetadata(rawUser.metadata);
+  const avatarUrl =
+    rawUser.avatar_url ||
+    rawUser.picture ||
+    rawUser.avatar ||
+    rawUser.photo_url ||
+    rawUser.image ||
+    metadata.avatar_url ||
+    metadata.picture ||
+    metadata.avatar ||
+    metadata.photo_url ||
+    metadata.image ||
+    undefined;
+
+  const name =
+    rawUser.name ||
+    metadata.name ||
+    metadata.full_name ||
+    rawUser.full_name ||
+    undefined;
+
   return {
     ...rawUser,
+    name,
+    avatar_url: avatarUrl,
     roles: parseRoles(rawUser.roles),
-    metadata: parseMetadata(rawUser.metadata),
+    metadata: {
+      ...metadata,
+      avatar_url: avatarUrl,
+      name,
+    },
   };
 }
 
@@ -397,6 +424,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }).catch(() => {});
     }
+
+    // Always synchronize latest user profile data (including OAuth avatar) from GET /auth/me
+    api.getMe(authData.access_token).then((me) => {
+      if (me.user) {
+        const freshUser = normalizeUser(me.user);
+        setUser(freshUser);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("auth_user", JSON.stringify(freshUser));
+        }
+      }
+      if (me.active_workspace) {
+        setActiveWorkspace(me.active_workspace);
+      }
+      if (me.workspaces && me.workspaces.length > 0) {
+        setWorkspaces(me.workspaces);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("workspaces_list", JSON.stringify(me.workspaces));
+        }
+      }
+    }).catch(() => {});
   };
 
   const logout = async (logoutAll: boolean = false) => {

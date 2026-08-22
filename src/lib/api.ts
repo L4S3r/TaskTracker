@@ -6,12 +6,14 @@
 
 import { Task, Workspace, WorkspaceMember, AuditLog, TrustedDevice } from "./tasks-store";
 
-const API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://auth-api.l4s3r.site";
+const API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
 export interface UserProfile {
   id: string;
+  name?: string;
   username: string;
   email: string;
+  avatar_url?: string;
   roles: string[];
   metadata?: {
     department?: string;
@@ -23,6 +25,8 @@ export interface UserProfile {
   };
   is_active?: boolean | number;
 }
+
+export type User = UserProfile;
 
 export interface AuthSuccessResponse {
   status: "SUCCESS";
@@ -246,12 +250,27 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-  async getMe(token: string): Promise<{ status: string; user: UserProfile; claims: any; active_workspace?: Workspace; workspaces?: Workspace[] }> {
+  async getMe(token: string): Promise<{
+    status: string;
+    user: UserProfile;
+    claims?: any;
+    active_workspace?: Workspace;
+    workspaces?: Workspace[];
+  }> {
     const res = await fetch(`${API_BASE}/auth/me`, {
       method: "GET",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
-    return this.handleResponse(res);
+    const data = await this.handleResponse<any>(res);
+    const user = data.user || data;
+    return {
+      status: "SUCCESS",
+      user,
+      claims: data.claims,
+      active_workspace: data.active_workspace || data.workspace,
+      workspaces: data.workspaces,
+    };
   }
 
   // =========================================================================
@@ -676,6 +695,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/oauth/${provider}/exchange`, {
       method: "POST",
       headers: this.getHeaders(),
+      credentials: "include",
       body: JSON.stringify({
         code,
         code_verifier: codeVerifier,

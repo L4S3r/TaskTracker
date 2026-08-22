@@ -267,14 +267,14 @@ export function SecuritySettings() {
         <CardHeader className="p-4 sm:p-5 pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Avatar name={user?.metadata?.name || user?.username} size="md">
-                <AvatarImage src={user?.metadata?.avatar_url} alt={user?.username} />
+              <Avatar name={user?.name || user?.metadata?.name || user?.username} size="md">
+                <AvatarImage src={user?.avatar_url || user?.metadata?.avatar_url} alt={user?.username} />
                 <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase() || "US"}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col text-left">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm text-foreground">
-                    {user?.metadata?.name || user?.username}
+                    {user?.name || user?.metadata?.name || user?.username}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     @{user?.username}

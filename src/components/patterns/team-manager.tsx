@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
+import { CreateWorkspaceModal } from "@/components/patterns/create-workspace-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   UserPlus,
@@ -26,13 +27,15 @@ import {
   Clock,
   UserCheck,
   Settings2,
+  Plus,
 } from "lucide-react";
 
 export function TeamManager() {
-  const { token, user, activeWorkspace, isAdmin, isSuperAdmin } = useAuth();
+  const { token, user, activeWorkspace, workspaces, isAdmin, isSuperAdmin } = useAuth();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Invite Form State
@@ -189,6 +192,41 @@ export function TeamManager() {
 
   const activeCount = members.filter((m) => m.status === "active").length;
   const invitedCount = members.filter((m) => m.status === "invited" || m.status === "pending").length;
+
+  if (!isLoading && (!activeWorkspace || workspaces.length === 0)) {
+    return (
+      <div className="flex min-h-[65vh] items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-6 sm:p-8 border-border/80 shadow-2xl bg-card animate-in fade-in-50 zoom-in-95 duration-200">
+          <CardHeader className="space-y-3 pb-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto border border-primary/20 shadow-xs">
+              <Building2 className="h-8 w-8" />
+            </div>
+            <CardTitle className="text-xl font-bold text-foreground">
+              Welcome! You are not a member of any workspace yet.
+            </CardTitle>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Create your first workspace to start collaborating and managing team clearances.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <Button
+              size="lg"
+              onClick={() => setIsCreateWsOpen(true)}
+              className="w-full gap-2 shadow-md text-sm font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              <span>+ Create a Workspace</span>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <CreateWorkspaceModal
+          isOpen={isCreateWsOpen}
+          onClose={() => setIsCreateWsOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

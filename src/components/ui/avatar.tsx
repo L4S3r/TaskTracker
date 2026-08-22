@@ -1,5 +1,23 @@
+"use client";
+
 import * as React from "react";
 import { cn } from "@/lib/utils";
+
+type ImageLoadingStatus = "idle" | "loading" | "loaded" | "error";
+
+interface AvatarContextValue {
+  status: ImageLoadingStatus;
+  setStatus: (status: ImageLoadingStatus) => void;
+  src?: string;
+  setSrc: (src?: string) => void;
+}
+
+const AvatarContext = React.createContext<AvatarContextValue>({
+  status: "idle",
+  setStatus: () => {},
+  src: undefined,
+  setSrc: () => {},
+});
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   src?: string;
@@ -30,17 +48,55 @@ export function AvatarImage({
   src,
   alt = "Avatar",
   className,
+  onLoad,
+  onError,
   ...props
 }: React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [hasError, setHasError] = React.useState(false);
-  if (!src || hasError) return null;
+  const { status, setStatus, setSrc } = React.useContext(AvatarContext);
+
+  React.useEffect(() => {
+    setSrc(src);
+    if (!src) {
+      setStatus("error");
+      return;
+    }
+
+    let isMounted = true;
+    const image = new window.Image();
+    image.referrerPolicy = "no-referrer";
+
+    image.onload = () => {
+      if (isMounted) {
+        setStatus("loaded");
+      }
+    };
+    image.onerror = () => {
+      if (isMounted) {
+        setStatus("error");
+      }
+    };
+
+    setStatus("loading");
+    image.src = src;
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src, setStatus, setSrc]);
+
+  if (status !== "loaded" || !src) {
+    return null;
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}
-      onError={() => setHasError(true)}
-      className={cn("h-full w-full object-cover", className)}
+      referrerPolicy="no-referrer"
+      onLoad={onLoad}
+      onError={onError}
+      className={cn("aspect-square h-full w-full object-cover shrink-0 block", className)}
       {...props}
     />
   );
@@ -51,10 +107,16 @@ export function AvatarFallback({
   className,
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) {
+  const { status } = React.useContext(AvatarContext);
+
+  if (status === "loaded") {
+    return null;
+  }
+
   return (
     <span
       className={cn(
-        "flex h-full w-full items-center justify-center font-semibold leading-none",
+        "flex h-full w-full items-center justify-center font-semibold leading-none text-center select-none",
         className
       )}
       {...props}
@@ -72,7 +134,33 @@ export function Avatar({
   children,
   ...props
 }: AvatarProps) {
-  const [imgError, setImgError] = React.useState(false);
+  const [status, setStatus] = React.useState<ImageLoadingStatus>(src ? "loading" : "idle");
+  const [currentSrc, setSrc] = React.useState<string | undefined>(src);
+
+  React.useEffect(() => {
+    if (!src) {
+      if (!children) setStatus("idle");
+      return;
+    }
+
+    let isMounted = true;
+    const image = new window.Image();
+    image.referrerPolicy = "no-referrer";
+
+    image.onload = () => {
+      if (isMounted) setStatus("loaded");
+    };
+    image.onerror = () => {
+      if (isMounted) setStatus("error");
+    };
+
+    setStatus("loading");
+    image.src = src;
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src, children]);
 
   const getInitials = (text?: string) => {
     if (!text) return "U";
@@ -90,31 +178,36 @@ export function Avatar({
   };
 
   const gradientClass = getGradientForName(name);
+  const showGradient = status !== "loaded";
 
   return (
-    <div
-      data-slot="avatar"
-      className={cn(
-        "relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold overflow-hidden select-none border border-border/60 shadow-xs",
-        sizes[size],
-        (!src || imgError) && `bg-gradient-to-br ${gradientClass}`,
-        className
-      )}
-      {...props}
-    >
-      {children ? (
-        children
-      ) : src && !imgError ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={name || "User Avatar"}
-          onError={() => setImgError(true)}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <span className="leading-none">{getInitials(name)}</span>
-      )}
-    </div>
+    <AvatarContext.Provider value={{ status, setStatus, src: currentSrc, setSrc }}>
+      <div
+        data-slot="avatar"
+        className={cn(
+          "relative flex shrink-0 items-center justify-center rounded-full font-semibold overflow-hidden select-none border border-border/60 shadow-xs",
+          sizes[size],
+          showGradient && `bg-gradient-to-br ${gradientClass}`,
+          className
+        )}
+        {...props}
+      >
+        {children ? (
+          children
+        ) : status === "loaded" && src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={name || "User Avatar"}
+            referrerPolicy="no-referrer"
+            className="aspect-square h-full w-full object-cover shrink-0 block"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center leading-none">
+            {getInitials(name)}
+          </span>
+        )}
+      </div>
+    </AvatarContext.Provider>
   );
 }

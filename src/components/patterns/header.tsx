@@ -138,11 +138,13 @@ export function Header() {
                 >
                   <Building2 className="h-4 w-4 text-primary shrink-0" />
                   <span className="max-w-[110px] sm:max-w-[160px] truncate">
-                    {activeWorkspace?.name || "Select Workspace"}
+                    {activeWorkspace?.name || (workspaces.length === 0 ? "No Workspace" : "Select Workspace")}
                   </span>
-                  <Badge variant={userRole as any} className="text-[9px] px-1.5 py-0 uppercase">
-                    {roleLabelMap[userRole] || userRole.toUpperCase()}
-                  </Badge>
+                  {activeWorkspace && (
+                    <Badge variant={userRole as any} className="text-[9px] px-1.5 py-0 uppercase">
+                      {roleLabelMap[userRole] || userRole.toUpperCase()}
+                    </Badge>
+                  )}
                   <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform shrink-0" />
                 </button>
 
@@ -257,13 +259,13 @@ export function Header() {
                     aria-label="User navigation menu"
                     aria-expanded={showProfileMenu}
                   >
-                    <Avatar name={user?.metadata?.name || user?.username} size="sm">
-                      <AvatarImage src={user?.metadata?.avatar_url} alt={user?.username} />
+                    <Avatar name={user?.name || user?.metadata?.name || user?.username} size="sm">
+                      <AvatarImage src={user?.avatar_url || user?.metadata?.avatar_url} alt={user?.username} />
                       <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase() || "US"}</AvatarFallback>
                     </Avatar>
                     <div className="hidden sm:flex flex-col text-left">
                       <span className="font-medium text-xs text-foreground leading-tight truncate max-w-[130px]">
-                        {user?.metadata?.name || user?.username}
+                        {user?.name || user?.metadata?.name || user?.username}
                       </span>
                       <span className="text-[10px] text-muted-foreground truncate max-w-[130px]">
                         @{user?.username}
@@ -276,13 +278,13 @@ export function Header() {
                     <div className="absolute right-0 mt-2 w-64 rounded-xl border border-border/80 bg-card p-2 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
                       <div className="px-3 py-2.5 border-b border-border/60 mb-1 bg-muted/20 rounded-lg">
                         <div className="flex items-center gap-2.5 mb-2">
-                          <Avatar name={user?.metadata?.name || user?.username} size="md">
-                            <AvatarImage src={user?.metadata?.avatar_url} alt={user?.username} />
+                          <Avatar name={user?.name || user?.metadata?.name || user?.username} size="md">
+                            <AvatarImage src={user?.avatar_url || user?.metadata?.avatar_url} alt={user?.username} />
                             <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase() || "US"}</AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col overflow-hidden text-left">
                             <span className="font-medium text-sm text-foreground truncate leading-tight">
-                              {user?.metadata?.name || user?.username}
+                              {user?.name || user?.metadata?.name || user?.username}
                             </span>
                             <span className="text-xs text-muted-foreground truncate">
                               @{user?.username}
@@ -382,13 +384,13 @@ export function Header() {
           <div className="lg:hidden border-t border-border/80 bg-card p-4 space-y-3 animate-in slide-in-from-top-2 duration-150 shadow-xl">
             {/* User Profile Header in Mobile Drawer */}
             <div className="flex items-center gap-3 p-3 border border-border/60 bg-muted/20 rounded-xl mb-1">
-              <Avatar name={user?.metadata?.name || user?.username} size="md">
-                <AvatarImage src={user?.metadata?.avatar_url} alt={user?.username} />
+              <Avatar name={user?.name || user?.metadata?.name || user?.username} size="md">
+                <AvatarImage src={user?.avatar_url || user?.metadata?.avatar_url} alt={user?.username} />
                 <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase() || "US"}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col text-left overflow-hidden">
                 <span className="font-medium text-sm text-foreground truncate leading-tight">
-                  {user?.metadata?.name || user?.username}
+                  {user?.name || user?.metadata?.name || user?.username}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   @{user?.username}
