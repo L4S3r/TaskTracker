@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { api, AuthSuccessResponse, UserProfile } from "./api";
+import { Workspace, WorkspaceRole } from "./tasks-store";
 
 function parseRoles(rawRoles: any): string[] {
   if (Array.isArray(rawRoles)) return rawRoles;
@@ -60,9 +61,25 @@ function isTokenExpired(jwtToken: string, bufferSeconds: number = 30): boolean {
 interface AuthContextType {
   user: UserProfile | null;
   token: string | null;
+  accessToken: string | null;
   refreshToken: string | null;
   isLoading: boolean;
+  isAuthenticated: boolean;
+  activeWorkspace: Workspace | null;
+  workspaces: Workspace[];
+  userRole: WorkspaceRole;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isDeveloper: boolean;
+  isEditor: boolean;
+  isViewer: boolean;
+  permissionAlert: string | null;
+  clearPermissionAlert: () => void;
+  setPermissionAlert: (alert: string | null) => void;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
+  createWorkspace: (data: { name: string; slug?: string; description?: string }) => Promise<Workspace>;
+  fetchWorkspaces: () => Promise<Workspace[]>;
+  setActiveWorkspace: (ws: Workspace | null) => void;
   loginSuccess: (authData: AuthSuccessResponse) => void;
   logout: (logoutAll?: boolean) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -77,23 +94,133 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [activeWorkspace, setActiveWorkspaceState] = useState<Workspace | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
 
   const isRefreshingRef = useRef<boolean>(false);
+
+  const setActiveWorkspace = useCallback((ws: Workspace | null) => {
+    setActiveWorkspaceState(ws);
+    api.setActiveWorkspaceId(ws?.id || null);
+    if (typeof window !== "undefined") {
+      if (ws) {
+        localStorage.setItem("active_workspace", JSON.stringify(ws));
+      } else {
+        localStorage.removeItem("active_workspace");
+      }
+    }
+  }, []);
 
   const clearAuthSession = useCallback((redirectToLogin: boolean = true) => {
     setToken(null);
     setRefreshToken(null);
     setUser(null);
+    setActiveWorkspace(null);
+    setWorkspaces([]);
+    setPermissionAlert(null);
+    api.setActiveWorkspaceId(null);
     if (typeof window !== "undefined") {
       localStorage.removeItem("auth_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("auth_user");
+      localStorage.removeItem("active_workspace");
+      localStorage.removeItem("workspaces_list");
     }
     if (redirectToLogin && pathname && !["/login", "/register", "/invite/accept", "/auth/callback"].includes(pathname)) {
       router.push("/login?expired=true");
     }
-  }, [pathname, router]);
+  }, [pathname, router, setActiveWorkspace]);
+
+  const fetchWorkspaces = useCallback(async (): Promise<Workspace[]> => {
+    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
+    if (!currentToken) return [];
+    try {
+      const res = await api.getWorkspaces(currentToken);
+      const list = res.workspaces || [];
+      setWorkspaces(list);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("workspaces_list", JSON.stringify(list));
+      }
+
+      // If no active workspace or active workspace no longer in list, set to first
+      setActiveWorkspaceState((prev) => {
+        if (!prev && list.length > 0) {
+          const first = list[0];
+          api.setActiveWorkspaceId(first.id);
+          localStorage.setItem("active_workspace", JSON.stringify(first));
+          return first;
+        }
+        if (prev) {
+          const updated = list.find((w) => w.id === prev.id);
+          if (updated) {
+            api.setActiveWorkspaceId(updated.id);
+            localStorage.setItem("active_workspace", JSON.stringify(updated));
+            return updated;
+          }
+        }
+        return prev;
+      });
+
+      return list;
+    } catch {
+      return [];
+    }
+  }, [token]);
+
+  const switchWorkspace = useCallback(async (workspaceId: string) => {
+    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
+    if (!currentToken) return;
+
+    setPermissionAlert(null);
+    try {
+      const res = await api.switchWorkspace(currentToken, workspaceId);
+      if (res.access_token) {
+        setToken(res.access_token);
+        localStorage.setItem("auth_token", res.access_token);
+      }
+      if (res.refresh_token) {
+        setRefreshToken(res.refresh_token);
+        localStorage.setItem("refresh_token", res.refresh_token);
+      }
+      if (res.user) {
+        const cleanUser = normalizeUser(res.user);
+        setUser(cleanUser);
+        localStorage.setItem("auth_user", JSON.stringify(cleanUser));
+      }
+
+      const target =
+        res.active_workspace ||
+        res.workspace ||
+        workspaces.find((w) => w.id === workspaceId) ||
+        ({ id: workspaceId, name: "Workspace", slug: workspaceId, role: "admin" } as Workspace);
+
+      setActiveWorkspace(target);
+      await fetchWorkspaces();
+    } catch (err: any) {
+      // If switch endpoint failed, fallback to local switch
+      const fallbackTarget = workspaces.find((w) => w.id === workspaceId);
+      if (fallbackTarget) {
+        setActiveWorkspace(fallbackTarget);
+      }
+      throw err;
+    }
+  }, [token, workspaces, setActiveWorkspace, fetchWorkspaces]);
+
+  const createWorkspace = useCallback(async (data: { name: string; slug?: string; description?: string }): Promise<Workspace> => {
+    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
+    if (!currentToken) throw new Error("Authentication required to create a workspace");
+
+    const res = await api.createWorkspace(currentToken, data);
+    const newWs = res.workspace;
+
+    await fetchWorkspaces();
+    if (newWs && newWs.id) {
+      await switchWorkspace(newWs.id);
+    }
+    return newWs;
+  }, [token, fetchWorkspaces, switchWorkspace]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     if (isRefreshingRef.current) return false;
@@ -113,7 +240,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("refresh_token", refreshed.refresh_token);
       }
 
-      // Refresh profile data in background
       try {
         const me = await api.getMe(refreshed.access_token);
         const cleanUser = normalizeUser(me.user);
@@ -121,8 +247,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== "undefined") {
           localStorage.setItem("auth_user", JSON.stringify(cleanUser));
         }
+        if (me.active_workspace) {
+          setActiveWorkspace(me.active_workspace);
+        }
+        if (me.workspaces) {
+          setWorkspaces(me.workspaces);
+        }
       } catch {
-        // Non-fatal if profile fetch fails
+        // Non-fatal
       }
 
       return true;
@@ -132,13 +264,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [refreshToken, clearAuthSession]);
+  }, [refreshToken, clearAuthSession, setActiveWorkspace]);
 
   // Restore session from localStorage on initial load
   useEffect(() => {
     const savedToken = localStorage.getItem("auth_token");
     const savedRefresh = localStorage.getItem("refresh_token");
     const savedUser = localStorage.getItem("auth_user");
+    const savedWorkspace = localStorage.getItem("active_workspace");
+    const savedWorkspacesList = localStorage.getItem("workspaces_list");
 
     if (savedToken && savedUser) {
       try {
@@ -147,9 +281,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRefreshToken(savedRefresh);
         setUser(normalizeUser(parsed));
 
-        // If access token is already expired on startup, trigger background refresh
+        if (savedWorkspace) {
+          try {
+            const parsedWs = JSON.parse(savedWorkspace);
+            setActiveWorkspaceState(parsedWs);
+            api.setActiveWorkspaceId(parsedWs.id);
+          } catch {}
+        }
+
+        if (savedWorkspacesList) {
+          try {
+            setWorkspaces(JSON.parse(savedWorkspacesList));
+          } catch {}
+        }
+
         if (isTokenExpired(savedToken)) {
           attemptTokenRefresh();
+        } else {
+          api.getWorkspaces(savedToken).then((res) => {
+            if (res.workspaces && res.workspaces.length > 0) {
+              setWorkspaces(res.workspaces);
+              localStorage.setItem("workspaces_list", JSON.stringify(res.workspaces));
+              if (!savedWorkspace) {
+                const first = res.workspaces[0];
+                setActiveWorkspaceState(first);
+                api.setActiveWorkspaceId(first.id);
+                localStorage.setItem("active_workspace", JSON.stringify(first));
+              }
+            }
+          }).catch(() => {});
         }
       } catch {
         clearAuthSession(false);
@@ -158,19 +318,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, [attemptTokenRefresh, clearAuthSession]);
 
-  // Listen for unauthorized 401 events across the app
+  // Listen for unauthorized 401 & forbidden 403 events across the app
   useEffect(() => {
     const handleUnauthorized = () => {
       attemptTokenRefresh();
     };
 
+    const handleForbidden = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const detail = customEvent.detail || "You do not have sufficient permissions to perform this action.";
+      setPermissionAlert(detail);
+      setTimeout(() => {
+        setPermissionAlert((curr) => (curr === detail ? null : curr));
+      }, 7000);
+    };
+
     window.addEventListener("auth:unauthorized", handleUnauthorized);
+    window.addEventListener("auth:forbidden", handleForbidden);
     return () => {
       window.removeEventListener("auth:unauthorized", handleUnauthorized);
+      window.removeEventListener("auth:forbidden", handleForbidden);
     };
   }, [attemptTokenRefresh]);
 
-  // Proactive token expiration heartbeat (every 45 seconds) & visibility change
+  // Proactive token expiration heartbeat (every 45s) & visibilitychange
   useEffect(() => {
     const checkExpiry = () => {
       if (token && isTokenExpired(token, 60)) {
@@ -203,15 +374,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(cleanUser);
       localStorage.setItem("auth_user", JSON.stringify(cleanUser));
     }
+
+    if (authData.active_workspace || authData.workspace) {
+      const ws = authData.active_workspace || authData.workspace;
+      if (ws) setActiveWorkspace(ws);
+    }
+
+    if (authData.workspaces && Array.isArray(authData.workspaces)) {
+      setWorkspaces(authData.workspaces);
+      localStorage.setItem("workspaces_list", JSON.stringify(authData.workspaces));
+      if (!authData.active_workspace && !authData.workspace && authData.workspaces.length > 0) {
+        setActiveWorkspace(authData.workspaces[0]);
+      }
+    } else {
+      api.getWorkspaces(authData.access_token).then((res) => {
+        if (res.workspaces && res.workspaces.length > 0) {
+          setWorkspaces(res.workspaces);
+          localStorage.setItem("workspaces_list", JSON.stringify(res.workspaces));
+          if (!activeWorkspace) {
+            setActiveWorkspace(res.workspaces[0]);
+          }
+        }
+      }).catch(() => {});
+    }
   };
 
   const logout = async (logoutAll: boolean = false) => {
     if (token) {
       try {
         await api.logout(token, undefined, logoutAll);
-      } catch {
-        // Continue local logout even if server is unreachable
-      }
+      } catch {}
     }
     clearAuthSession(true);
   };
@@ -223,22 +415,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cleanUser = normalizeUser(res.user);
       setUser(cleanUser);
       localStorage.setItem("auth_user", JSON.stringify(cleanUser));
+      if (res.active_workspace) {
+        setActiveWorkspace(res.active_workspace);
+      }
+      if (res.workspaces) {
+        setWorkspaces(res.workspaces);
+      }
+      await fetchWorkspaces();
     } catch {
       await attemptTokenRefresh();
     }
   };
 
-  const rolesArray = user?.roles ? parseRoles(user.roles) : [];
-  const isAdmin = rolesArray.includes("admin");
+  // Role resolution: superadmin > admin > developer > editor > viewer
+  const globalRoles = user?.roles ? parseRoles(user.roles).map((r) => r.toLowerCase()) : [];
+  const workspaceRole = (
+    activeWorkspace?.member_role ||
+    activeWorkspace?.role ||
+    ""
+  ).toLowerCase();
+
+  const isSuperAdmin = globalRoles.includes("superadmin");
+  const isGlobalAdmin = globalRoles.includes("admin");
+
+  const effectiveRole: WorkspaceRole = isSuperAdmin
+    ? "superadmin"
+    : workspaceRole === "superadmin"
+    ? "superadmin"
+    : isGlobalAdmin || workspaceRole === "admin"
+    ? "admin"
+    : workspaceRole === "developer" || workspaceRole === "dev"
+    ? "developer"
+    : workspaceRole === "editor"
+    ? "editor"
+    : "viewer";
+
+  const isAdmin = effectiveRole === "admin" || effectiveRole === "superadmin";
+  const isDeveloper = effectiveRole === "developer" || isAdmin;
+  const isEditor = effectiveRole === "editor" || isDeveloper;
+  const isViewer = effectiveRole === "viewer";
 
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
+        accessToken: token,
         refreshToken,
         isLoading,
+        isAuthenticated: Boolean(token && user),
+        activeWorkspace,
+        workspaces,
+        userRole: effectiveRole,
         isAdmin,
+        isSuperAdmin,
+        isDeveloper,
+        isEditor,
+        isViewer,
+        permissionAlert,
+        clearPermissionAlert: () => setPermissionAlert(null),
+        setPermissionAlert,
+        switchWorkspace,
+        createWorkspace,
+        fetchWorkspaces,
+        setActiveWorkspace,
         loginSuccess,
         logout,
         refreshProfile,
@@ -256,3 +496,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export const useAuthStore = useAuth;

@@ -11,14 +11,27 @@ import { Avatar } from "@/components/ui/avatar";
 import { TaskModal } from "./task-modal";
 import { TaskDetailModal } from "./task-detail-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Search, ArrowRight, Trash2, CheckCircle2, Clock, AlertTriangle, RefreshCw, Calendar, Users, CheckSquare, ChevronDown, X } from "lucide-react";
-
+import {
+  Plus,
+  Search,
+  ArrowRight,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
+  Calendar,
+  Building2,
+  Lock,
+  ChevronDown,
+  X,
+  CheckSquare,
+} from "lucide-react";
 
 const COLUMNS: { id: TaskStatus; label: string; accentColor: string; badgeBg: string; dotColor: string }[] = [
   { id: "todo", label: "To Do", accentColor: "border-t-indigo-500", badgeBg: "bg-indigo-500/10 text-indigo-500", dotColor: "bg-indigo-500" },
   { id: "in_progress", label: "In Progress", accentColor: "border-t-blue-500", badgeBg: "bg-blue-500/10 text-blue-500", dotColor: "bg-blue-500 animate-pulse" },
-  { id: "review", label: "In Review", accentColor: "border-t-purple-500", badgeBg: "bg-purple-500/10 text-purple-500", dotColor: "bg-purple-500" },
-  { id: "done", label: "Completed", accentColor: "border-t-emerald-500", badgeBg: "bg-emerald-500/10 text-emerald-500", dotColor: "bg-emerald-500" },
+  { id: "done", label: "Done", accentColor: "border-t-emerald-500", badgeBg: "bg-emerald-500/10 text-emerald-500", dotColor: "bg-emerald-500" },
 ];
 
 function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
@@ -58,7 +71,7 @@ function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
 }
 
 export function TaskBoard() {
-  const { token, user } = useAuth();
+  const { token, user, activeWorkspace, userRole, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,46 +83,62 @@ export function TaskBoard() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+
+  // RBAC Permission resolution
+  const canCreate = !isViewer;
+  const canMove = !isViewer;
+
+  const canDeleteTask = (task: Task): boolean => {
+    if (isAdmin) return true;
+    if (isDeveloper || isEditor) {
+      const isOwner =
+        task.created_by?.toLowerCase() === user?.email?.toLowerCase() ||
+        task.created_by === user?.id ||
+        task.created_by === user?.username;
+      return isOwner;
+    }
+    return false;
+  };
+
   const fetchTasksAndMembers = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
     setError(null);
 
+    const wsId = activeWorkspace?.id;
+
     try {
       const [tasksRes, membersRes] = await Promise.all([
-        api.getTasks(token),
-        api.getTeamMembers(token),
+        api.getTasks(token, { workspace_id: wsId }),
+        wsId ? api.getWorkspaceMembers(token, wsId) : api.getTeamMembers(token),
       ]);
       setTasks(tasksRes.tasks || []);
       setMembers(membersRes.members || []);
     } catch (err: any) {
-      setError(err.message || "Failed to load tasks from server.");
+      setError(err.message || "Failed to load workspace deliverables.");
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, activeWorkspace?.id]);
 
   useEffect(() => {
     fetchTasksAndMembers();
   }, [fetchTasksAndMembers]);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    if (!token) return;
+    if (!token || !canMove) return;
     try {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
-      );
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
       await api.updateTask(token, taskId, { status: newStatus });
     } catch {
       fetchTasksAndMembers();
     }
   };
 
-  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
-  const [isDeletingTask, setIsDeletingTask] = useState(false);
-
   const handleConfirmDeleteTask = async () => {
-    if (!token || !taskToDelete) return;
+    if (!token || !taskToDelete || !canDeleteTask(taskToDelete)) return;
     setIsDeletingTask(true);
     const targetId = taskToDelete.id;
 
@@ -157,8 +186,7 @@ export function TaskBoard() {
   });
 
   const todoCount = tasks.filter((t) => t.status === "todo").length;
-  const inProgressCount = tasks.filter((t) => t.status === "in_progress").length;
-  const reviewCount = tasks.filter((t) => t.status === "review").length;
+  const inProgressCount = tasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
   const overdueCount = tasks.filter((t) => getDeadlineInfo(t.due_date || t.dueDate, t.status)?.type === "overdue").length;
@@ -177,9 +205,16 @@ export function TaskBoard() {
       {/* Board Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Team Task Board</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {activeWorkspace?.name ? `${activeWorkspace.name} Sprint Board` : "Workspace Task Board"}
+            </h1>
+            <Badge variant={userRole as any} className="uppercase text-[10px]">
+              {userRole}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Deliverables, sprint deadlines, and group collaborator assignments.
+            {activeWorkspace?.description || "Deliverables, sprint deadlines, and multi-collaborator assignments."}
           </p>
         </div>
 
@@ -189,16 +224,23 @@ export function TaskBoard() {
             size="sm"
             onClick={fetchTasksAndMembers}
             className="gap-1.5"
-            title="Refresh task board"
+            title="Refresh sprint tasks"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             <span>Refresh</span>
           </Button>
 
-          <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm">
-            <Plus className="h-4 w-4" />
-            <span>New Task</span>
-          </Button>
+          {canCreate ? (
+            <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm">
+              <Plus className="h-4 w-4" />
+              <span>New Task</span>
+            </Button>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/80 bg-secondary/50 text-[11px] text-muted-foreground font-medium">
+              <Lock className="h-3 w-3" />
+              <span>Viewer (Read-Only)</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -352,10 +394,16 @@ export function TaskBoard() {
           </Button>
         </div>
       ) : (
-        /* Kanban Columns Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        /* Kanban Columns Grid (To Do, In Progress, Done) */
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {COLUMNS.map((col) => {
-            const colTasks = filteredTasks.filter((t) => t.status === col.id);
+            const colTasks = filteredTasks.filter((t) => {
+              if (col.id === "in_progress") {
+                return t.status === "in_progress" || t.status === "review";
+              }
+              return t.status === col.id;
+            });
+
             return (
               <div
                 key={col.id}
@@ -376,17 +424,19 @@ export function TaskBoard() {
                 <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
                   {colTasks.map((task) => {
                     const dlInfo = getDeadlineInfo(task.due_date || task.dueDate, task.status);
+                    const canDelete = canDeleteTask(task);
 
-                    // Resolve assignees list
                     const taskAssignees =
                       task.assignees && task.assignees.length > 0
                         ? task.assignees
                         : task.assignee_email
-                        ? [{
-                            email: task.assignee_email,
-                            name: task.assignee_name || task.assignee_email.split("@")[0],
-                            avatar_url: task.assignee_avatar,
-                          }]
+                        ? [
+                            {
+                              email: task.assignee_email,
+                              name: task.assignee_name || task.assignee_email.split("@")[0],
+                              avatar_url: task.assignee_avatar,
+                            },
+                          ]
                         : [];
 
                     return (
@@ -398,17 +448,19 @@ export function TaskBoard() {
                         <CardHeader className="p-3.5 pb-2 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <Badge variant={task.priority as any}>{task.priority}</Badge>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTaskToDelete(task);
-                              }}
-                              className="opacity-60 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all min-h-[44px] min-w-[44px] flex items-center justify-center -m-1.5 rounded-lg hover:bg-destructive/10 cursor-pointer"
-                              title="Delete task"
-                              aria-label={`Delete task ${task.title}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            {canDelete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTaskToDelete(task);
+                                }}
+                                className="opacity-60 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all min-h-[44px] min-w-[44px] flex items-center justify-center -m-1.5 rounded-lg hover:bg-destructive/10 cursor-pointer"
+                                title="Delete task"
+                                aria-label={`Delete task ${task.title}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
 
                           <CardTitle className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors">
@@ -483,14 +535,12 @@ export function TaskBoard() {
 
                             {/* Move task quick action */}
                             <div className="flex items-center gap-1">
-                              {col.id !== "done" && (
+                              {canMove && col.id !== "done" && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const nextIndex = COLUMNS.findIndex((c) => c.id === col.id) + 1;
-                                    if (nextIndex < COLUMNS.length) {
-                                      handleStatusChange(task.id, COLUMNS[nextIndex].id);
-                                    }
+                                    const nextStatus: TaskStatus = col.id === "todo" ? "in_progress" : "done";
+                                    handleStatusChange(task.id, nextStatus);
                                   }}
                                   className="group/btn flex items-center gap-1.5 rounded-lg bg-secondary/80 hover:bg-primary hover:text-primary-foreground min-h-[44px] px-3 py-2 text-xs font-semibold text-secondary-foreground transition-all cursor-pointer"
                                   title="Move to next stage"
@@ -552,4 +602,3 @@ export function TaskBoard() {
     </div>
   );
 }
-

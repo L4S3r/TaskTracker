@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { TeamMember } from "@/lib/tasks-store";
+import { WorkspaceMember, WorkspaceRole } from "@/lib/tasks-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -11,18 +11,34 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { UserPlus, Mail, CheckCircle2, AlertCircle, Send, Trash2, RefreshCw, Copy, Check } from "lucide-react";
+import {
+  UserPlus,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  Send,
+  Trash2,
+  RefreshCw,
+  Copy,
+  Check,
+  Building2,
+  Shield,
+  Clock,
+  UserCheck,
+  Settings2,
+} from "lucide-react";
 
 export function TeamManager() {
-  const { token, user, isAdmin } = useAuth();
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const { token, user, activeWorkspace, isAdmin, isSuperAdmin } = useAuth();
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Invite Form State
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "editor" | "viewer">("viewer");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>("viewer");
   const [inviteDept, setInviteDept] = useState("Engineering");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,22 +47,28 @@ export function TeamManager() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Role Edit State
+  const [memberToEditRole, setMemberToEditRole] = useState<WorkspaceMember | null>(null);
+  const [selectedNewRole, setSelectedNewRole] = useState<WorkspaceRole>("viewer");
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
   // Delete Confirmation State
-  const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<WorkspaceMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchMembers = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
+    const wsId = activeWorkspace?.id;
     try {
-      const res = await api.getTeamMembers(token);
+      const res = wsId ? await api.getWorkspaceMembers(token, wsId) : await api.getTeamMembers(token);
       setMembers(res.members || []);
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to load team members from server.");
+      setErrorMessage(err.message || "Failed to load workspace members.");
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, activeWorkspace?.id]);
 
   useEffect(() => {
     fetchMembers();
@@ -65,21 +87,31 @@ export function TeamManager() {
     setGeneratedInviteUrl(null);
     setErrorMessage(null);
 
+    const wsId = activeWorkspace?.id;
+
     try {
       const payload = {
         email: inviteEmail.trim().toLowerCase(),
+        name: inviteName.trim() || undefined,
         role: inviteRole,
-        department: inviteDept,
+        department: inviteDept.trim() || "General",
       };
 
-      const res = await api.inviteTeamMember(token, payload);
-      setSuccessMessage(res.message || `Invitation dispatched to ${inviteEmail}.`);
-      if (res.member?.invite_token) {
-        setGeneratedInviteUrl(`${window.location.origin}/invite/accept?token=${res.member.invite_token}`);
+      const res: any = wsId
+        ? await api.inviteWorkspaceMember(token, wsId, payload)
+        : await api.inviteTeamMember(token, payload);
+
+      setSuccessMessage(res.message || `Transactional invitation dispatched to ${inviteEmail}.`);
+      const tokenString = res.invite_token || (res.member && res.member.invite_token);
+      if (tokenString) {
+        setGeneratedInviteUrl(`${window.location.origin}/invite/accept?token=${encodeURIComponent(tokenString)}`);
+      } else if (res.invite_url) {
+        setGeneratedInviteUrl(res.invite_url);
       }
 
       await fetchMembers();
       setInviteEmail("");
+      setInviteName("");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to dispatch invitation.");
     } finally {
@@ -94,16 +126,51 @@ export function TeamManager() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  const handleOpenRoleModal = (m: WorkspaceMember) => {
+    setMemberToEditRole(m);
+    setSelectedNewRole((m.role as WorkspaceRole) || "viewer");
+  };
+
+  const handleSaveRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !memberToEditRole || !activeWorkspace?.id) return;
+    setIsUpdatingRole(true);
+    setErrorMessage(null);
+
+    const memberIdOrEmail = memberToEditRole.id || memberToEditRole.email;
+
+    try {
+      await api.updateWorkspaceMemberRole(token, activeWorkspace.id, memberIdOrEmail, selectedNewRole);
+      setMembers((prev) =>
+        prev.map((m) => (m.id === memberToEditRole.id || m.email === memberToEditRole.email ? { ...m, role: selectedNewRole } : m))
+      );
+      setMemberToEditRole(null);
+      await fetchMembers();
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to update member role.");
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!token || !memberToDelete) return;
     setIsDeleting(true);
 
-    const emailToDelete = memberToDelete;
+    const wsId = activeWorkspace?.id;
+    const memberIdOrEmail = memberToDelete.id || memberToDelete.email;
+
     // Optimistic UI removal
-    setMembers((prev) => prev.filter((m) => m.email.toLowerCase() !== emailToDelete.toLowerCase()));
+    setMembers((prev) =>
+      prev.filter((m) => m.email.toLowerCase() !== memberToDelete.email.toLowerCase() && m.id !== memberToDelete.id)
+    );
 
     try {
-      await api.removeTeamMember(token, emailToDelete);
+      if (wsId) {
+        await api.removeWorkspaceMember(token, wsId, memberIdOrEmail);
+      } else {
+        await api.removeTeamMember(token, memberToDelete.email);
+      }
       await fetchMembers();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to remove member.");
@@ -115,17 +182,23 @@ export function TeamManager() {
   };
 
   const activeCount = members.filter((m) => m.status === "active").length;
-  const invitedCount = members.filter((m) => m.status === "invited").length;
-  const adminCount = members.filter((m) => m.role === "admin").length;
+  const invitedCount = members.filter((m) => m.status === "invited" || m.status === "pending").length;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Team Management</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {activeWorkspace?.name ? `${activeWorkspace.name} Team` : "Workspace Team Management"}
+            </h1>
+            <Badge variant="outline" className="text-xs">
+              Multi-Tenant Scoped
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time registered users, role clearances, and invitation dispatches.
+            Manage workspace collaborator clearances, roles, and pending invitation dispatches.
           </p>
         </div>
 
@@ -135,7 +208,7 @@ export function TeamManager() {
             size="sm"
             onClick={fetchMembers}
             className="gap-1.5"
-            title="Refresh team list"
+            title="Refresh member roster"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             <span>Refresh</span>
@@ -153,27 +226,34 @@ export function TeamManager() {
               size="sm"
             >
               <UserPlus className="h-4 w-4" />
-              <span>Invite Team Member</span>
+              <span>Invite Colleague</span>
             </Button>
           )}
         </div>
       </div>
 
+      {errorMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       {/* Team Metrics Summary Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Workspace Members</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Workspace Members</p>
             <p className="text-xl font-bold text-foreground mt-0.5">{members.length}</p>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <UserPlus className="h-4 w-4" />
+            <Building2 className="h-4 w-4" />
           </div>
         </div>
 
         <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Members</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Active Roster</p>
             <p className="text-xl font-bold text-emerald-500 mt-0.5">{activeCount}</p>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -192,11 +272,11 @@ export function TeamManager() {
         </div>
       </div>
 
-      {/* Team Roster Card */}
+      {/* Member Directory Table */}
       <Card className="border-border/80 shadow-sm bg-card overflow-hidden">
         <CardHeader className="p-4 sm:p-5 pb-3">
-          <CardTitle className="text-base font-bold">Workspace Members ({members.length})</CardTitle>
-          <CardDescription>Live database records of active users and pending invitations.</CardDescription>
+          <CardTitle className="text-base font-bold">Workspace Members & Clearances ({members.length})</CardTitle>
+          <CardDescription>Live database records of active users and pending invitations in {activeWorkspace?.name || "this workspace"}.</CardDescription>
         </CardHeader>
 
         <CardContent className="p-0">
@@ -210,71 +290,106 @@ export function TeamManager() {
                 <thead className="border-y border-border/80 bg-muted/40 uppercase text-[10px] font-semibold text-muted-foreground">
                   <tr>
                     <th className="px-5 py-3">Member</th>
-                    <th className="px-5 py-3">Role</th>
                     <th className="px-5 py-3">Department</th>
+                    <th className="px-5 py-3">Role Badge</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Joined / Invited</th>
                     {isAdmin && <th className="px-5 py-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y border-border/60 divide-border/60">
-                  {members.map((m) => (
-                    <tr key={m.id || m.email} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-5 py-3.5 flex items-center gap-3">
-                        <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
-                        <div>
-                          <p className="font-semibold text-foreground leading-tight">{m.name || m.email.split("@")[0]}</p>
-                          <p className="text-[11px] text-muted-foreground">{m.email}</p>
-                        </div>
-                      </td>
+                  {members.map((m) => {
+                    const isSelf = m.email.toLowerCase() === user?.email?.toLowerCase();
+                    const roleKey = (m.role || "viewer").toLowerCase();
+                    return (
+                      <tr key={m.id || m.email} className="hover:bg-muted/30 transition-colors">
+                        {/* Member Column */}
+                        <td className="px-5 py-3.5 flex items-center gap-3">
+                          <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-semibold text-foreground leading-tight">{m.name || m.email.split("@")[0]}</p>
+                              {isSelf && (
+                                <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.2 rounded font-semibold">You</span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{m.email}</p>
+                            {m.username && m.username !== m.email && (
+                              <p className="text-[10px] text-muted-foreground/70 font-mono">@{m.username}</p>
+                            )}
+                          </div>
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        <Badge variant={m.role as any}>{m.role.toUpperCase()}</Badge>
-                      </td>
+                        {/* Department */}
+                        <td className="px-5 py-3.5 text-foreground/80 font-medium">{m.department || "General"}</td>
 
-                      <td className="px-5 py-3.5 text-foreground/80 font-medium">{m.department || "General"}</td>
+                        {/* Role Badge */}
+                        <td className="px-5 py-3.5">
+                          <Badge variant={roleKey as any} className="uppercase text-[10px]">
+                            {roleKey}
+                          </Badge>
+                        </td>
 
-                      <td className="px-5 py-3.5">
-                        {m.status === "active" ? (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[10px]">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>Active</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 text-[10px]">
-                            <Mail className="h-3 w-3" />
-                            <span>Invite Sent</span>
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-5 py-3.5 text-muted-foreground">
-                        {m.invited_at ? new Date(m.invited_at).toLocaleDateString() : "Active Member"}
-                      </td>
-
-                      {isAdmin && (
-                        <td className="px-5 py-3.5 text-right">
-                          {m.email.toLowerCase() !== user?.email?.toLowerCase() ? (
-                            <button
-                              onClick={() => setMemberToDelete(m.email)}
-                              className="text-muted-foreground hover:text-destructive transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl hover:bg-destructive/10 cursor-pointer"
-                              title="Remove member"
-                              aria-label={`Remove member ${m.name || m.email}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                        {/* Status */}
+                        <td className="px-5 py-3.5">
+                          {m.status === "active" ? (
+                            <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 text-[10px]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>Active</span>
+                            </span>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground/80 font-medium px-2.5 py-1 bg-muted rounded-md inline-block">You</span>
+                            <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 text-[10px]" title={m.expires_at ? `Expires: ${new Date(m.expires_at).toLocaleDateString()}` : undefined}>
+                              <Clock className="h-3 w-3" />
+                              <span>Invited / Pending</span>
+                            </span>
                           )}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+
+                        {/* Joined / Invited */}
+                        <td className="px-5 py-3.5 text-muted-foreground">
+                          {m.invited_at || m.invitedAt
+                            ? `Invited ${new Date(m.invited_at || m.invitedAt!).toLocaleDateString()}`
+                            : m.joined_at
+                            ? `Joined ${new Date(m.joined_at).toLocaleDateString()}`
+                            : "Active Member"}
+                        </td>
+
+                        {/* Actions (Admins Only) */}
+                        {isAdmin && (
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {!isSelf && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenRoleModal(m)}
+                                    className="text-muted-foreground hover:text-primary transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl hover:bg-primary/10 cursor-pointer"
+                                    title="Change member role"
+                                    aria-label={`Change role for ${m.name || m.email}`}
+                                  >
+                                    <Settings2 className="h-4 w-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => setMemberToDelete(m)}
+                                    className="text-muted-foreground hover:text-destructive transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl hover:bg-destructive/10 cursor-pointer"
+                                    title="Remove member"
+                                    aria-label={`Remove member ${m.name || m.email}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
 
                   {members.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">
-                        No team members registered yet.
+                        No team members registered in this workspace yet.
                       </td>
                     </tr>
                   )}
@@ -289,8 +404,8 @@ export function TeamManager() {
       <Modal
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
-        title="Invite New Team Member"
-        description="Enter the colleague's email and role. Full name and profile details are automatically synced."
+        title="Invite Colleague to Workspace"
+        description={`Send a scoped invitation link to collaborate on ${activeWorkspace?.name || "this workspace"}.`}
       >
         <form onSubmit={handleInvite} noValidate className="space-y-4 pt-1">
           {errorMessage && (
@@ -342,19 +457,28 @@ export function TeamManager() {
             onChange={(e) => setInviteEmail(e.target.value)}
           />
 
+          <Input
+            label="Colleague Name (Optional)"
+            type="text"
+            placeholder="e.g. Jane Smith"
+            value={inviteName}
+            onChange={(e) => setInviteName(e.target.value)}
+          />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
-                Access Role
+                Clearance Role
               </label>
               <select
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as any)}
+                onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
                 className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
               >
-                <option value="viewer">Viewer (Clearance 1 - Read Only)</option>
-                <option value="editor">Editor (Clearance 2 - Manage Tasks)</option>
-                <option value="admin">Admin (Clearance 3 - Full Access)</option>
+                <option value="viewer">Viewer (Read-Only)</option>
+                <option value="editor">Editor (Manage Tasks)</option>
+                <option value="developer">Developer (Create & Edit)</option>
+                <option value="admin">Admin (Full Workspace Management)</option>
               </select>
             </div>
 
@@ -369,9 +493,11 @@ export function TeamManager() {
               >
                 <option value="Engineering">Engineering</option>
                 <option value="Product">Product</option>
+                <option value="Design">Design</option>
                 <option value="Security">Security</option>
                 <option value="Finance">Finance</option>
                 <option value="Operations">Operations</option>
+                <option value="General">General</option>
               </select>
             </div>
           </div>
@@ -382,22 +508,57 @@ export function TeamManager() {
             </Button>
             <Button type="submit" size="sm" isLoading={isSubmitting} className="gap-2">
               <Send className="h-4 w-4" />
-              <span>Send Invitation</span>
+              <span>Dispatch Invitation</span>
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Custom In-App Member Deletion Confirmation Dialog */}
+      {/* Change Role Modal */}
+      <Modal
+        isOpen={Boolean(memberToEditRole)}
+        onClose={() => setMemberToEditRole(null)}
+        title="Modify Member Clearance"
+        description={`Update role permissions for ${memberToEditRole?.name || memberToEditRole?.email}.`}
+      >
+        <form onSubmit={handleSaveRole} className="space-y-4 pt-1">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+              Assigned Clearance Role
+            </label>
+            <select
+              value={selectedNewRole}
+              onChange={(e) => setSelectedNewRole(e.target.value as WorkspaceRole)}
+              className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
+            >
+              <option value="viewer">Viewer (Read-Only)</option>
+              <option value="editor">Editor (Manage Tasks)</option>
+              <option value="developer">Developer (Create & Edit Deliverables)</option>
+              <option value="admin">Admin (Full Workspace Management)</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-border/70">
+            <Button type="button" variant="outline" size="sm" onClick={() => setMemberToEditRole(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" isLoading={isUpdatingRole}>
+              Update Role
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Member Deletion Confirmation Dialog */}
       <ConfirmDialog
         isOpen={Boolean(memberToDelete)}
         onClose={() => setMemberToDelete(null)}
         onConfirm={handleConfirmDelete}
         isLoading={isDeleting}
-        title="Remove Workspace Member"
-        description={`Are you sure you want to permanently remove ${memberToDelete} from the team workspace? All active sessions will be terminated.`}
+        title="Remove Member from Workspace"
+        description={`Are you sure you want to revoke ${memberToDelete?.name || memberToDelete?.email}'s access to "${activeWorkspace?.name || "this workspace"}"?`}
         confirmText="Remove Member"
-        cancelText="Keep Member"
+        cancelText="Cancel"
         variant="destructive"
       />
     </div>

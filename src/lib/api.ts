@@ -1,12 +1,12 @@
 /**
  * Auth N&Z REST API Client (src/lib/api.ts)
  * ----------------------------------------
- * Interfaces with the Auth N&Z Security Gateway backend.
+ * Interfaces with the Auth N&Z Security Gateway & Multi-Tenant Backend.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_AUTH_API_URL;
+import { Task, Workspace, WorkspaceMember, AuditLog } from "./tasks-store";
 
+const API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://auth-api.l4s3r.site";
 
 export interface UserProfile {
   id: string;
@@ -31,6 +31,9 @@ export interface AuthSuccessResponse {
   refresh_token: string;
   session_id?: string;
   user?: UserProfile;
+  workspace?: Workspace;
+  active_workspace?: Workspace;
+  workspaces?: Workspace[];
 }
 
 export interface MFARequiredResponse {
@@ -42,12 +45,26 @@ export interface MFARequiredResponse {
 export type LoginResponse = AuthSuccessResponse | MFARequiredResponse;
 
 class ApiClient {
-  private getHeaders(token?: string | null): HeadersInit {
-    const headers: HeadersInit = {
+  private activeWorkspaceId: string | null = null;
+
+  setActiveWorkspaceId(id: string | null | undefined) {
+    this.activeWorkspaceId = id || null;
+  }
+
+  getActiveWorkspaceId(): string | null {
+    return this.activeWorkspaceId;
+  }
+
+  private getHeaders(token?: string | null, workspaceId?: string | null): HeadersInit {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    }
+    const wsId = workspaceId || this.activeWorkspaceId;
+    if (wsId) {
+      headers["X-Workspace-Id"] = wsId;
     }
     return headers;
   }
@@ -63,11 +80,11 @@ class ApiClient {
       let detail = "An unexpected error occurred.";
       try {
         const errorJson = await res.json();
-        const rawDetail = errorJson.detail || errorJson.reason || errorJson.message;
+        const rawDetail = errorJson.detail || errorJson.reason || errorJson.message || errorJson.error;
         if (typeof rawDetail === "string") {
           detail = rawDetail;
         } else if (Array.isArray(rawDetail)) {
-          detail = rawDetail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+          detail = rawDetail.map((d: any) => d.msg || d.message || JSON.stringify(d)).join(", ");
         } else if (typeof rawDetail === "object" && rawDetail !== null) {
           detail = JSON.stringify(rawDetail);
         } else {
@@ -76,12 +93,21 @@ class ApiClient {
       } catch {
         detail = res.statusText || `HTTP error ${res.status}`;
       }
+
+      if (res.status === 403) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("auth:forbidden", {
+              detail: detail || "You do not have sufficient permissions to perform this action.",
+            })
+          );
+        }
+      }
+
       throw new Error(detail);
     }
     return res.json();
   }
-
-
 
   // =========================================================================
   // Authentication Endpoints
@@ -144,8 +170,6 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-
-
   async refreshTokens(refreshToken: string): Promise<{
     status: "SUCCESS";
     access_token: string;
@@ -172,7 +196,7 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-  async getMe(token: string): Promise<{ status: string; user: UserProfile; claims: any }> {
+  async getMe(token: string): Promise<{ status: string; user: UserProfile; claims: any; active_workspace?: Workspace; workspaces?: Workspace[] }> {
     const res = await fetch(`${API_BASE}/auth/me`, {
       method: "GET",
       headers: this.getHeaders(token),
@@ -181,24 +205,345 @@ class ApiClient {
   }
 
   // =========================================================================
-  // Administration Endpoints
+  // Multi-Tenancy & Workspace Endpoints
   // =========================================================================
 
-  async adminCreateUser(
-    token: string,
-    payload: {
-      username: string;
-      email: string;
-      password: string;
-      roles: string[];
-      department: string;
-      clearance: number;
+  async getWorkspaces(token: string): Promise<{ status: string; count?: number; workspaces: Workspace[] }> {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces`, {
+        method: "GET",
+        headers: this.getHeaders(token),
+      });
+      const data = await this.handleResponse<any>(res);
+      const workspaces = Array.isArray(data) ? data : data.workspaces || [];
+      return { status: "SUCCESS", count: workspaces.length, workspaces };
+    } catch (err: any) {
+      // Fallback if workspaces endpoint returns object
+      throw err;
     }
-  ): Promise<{ status: string; user: UserProfile }> {
-    const res = await fetch(`${API_BASE}/admin/users`, {
+  }
+
+  async createWorkspace(
+    token: string,
+    payload: { name: string; slug?: string; description?: string }
+  ): Promise<{ status: string; workspace: Workspace; message?: string }> {
+    const res = await fetch(`${API_BASE}/workspaces`, {
       method: "POST",
       headers: this.getHeaders(token),
       body: JSON.stringify(payload),
+    });
+    return this.handleResponse(res);
+  }
+
+  async getWorkspace(token: string, workspaceId: string): Promise<{ status: string; workspace: Workspace }> {
+    const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}`, {
+      method: "GET",
+      headers: this.getHeaders(token),
+    });
+    return this.handleResponse(res);
+  }
+
+  async switchWorkspace(
+    token: string,
+    workspaceId: string
+  ): Promise<{
+    status: string;
+    workspace?: Workspace;
+    active_workspace?: Workspace;
+    access_token?: string;
+    refresh_token?: string;
+    user?: UserProfile;
+    message?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/auth/workspaces/switch`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    });
+    const data = await this.handleResponse<any>(res);
+    this.setActiveWorkspaceId(workspaceId);
+    return data;
+  }
+
+  async getWorkspaceAuditLogs(
+    token: string,
+    workspaceId: string,
+    params?: { limit?: number; offset?: number; event_type?: string; severity?: string }
+  ): Promise<{ status: string; count: number; logs: AuditLog[] }> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.offset !== undefined) searchParams.append("offset", params.offset.toString());
+    if (params?.event_type && params.event_type !== "all") searchParams.append("event_type", params.event_type);
+    if (params?.severity && params.severity !== "all") searchParams.append("severity", params.severity);
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/audit-logs${query}`, {
+      method: "GET",
+      headers: this.getHeaders(token, workspaceId),
+    });
+    const data = await this.handleResponse<any>(res);
+    const logs = Array.isArray(data) ? data : data.logs || [];
+    return { status: "SUCCESS", count: logs.length, logs };
+  }
+
+  // =========================================================================
+  // Scoped Task Management Endpoints
+  // =========================================================================
+
+  async getTasks(
+    token: string,
+    filters?: { workspace_id?: string; status?: string; priority?: string; assignee_email?: string }
+  ): Promise<{ status: string; count: number; tasks: Task[] }> {
+    const params = new URLSearchParams();
+    const wsId = filters?.workspace_id || this.activeWorkspaceId;
+    if (wsId) params.append("workspace_id", wsId);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.priority) params.append("priority", filters.priority);
+    if (filters?.assignee_email) params.append("assignee_email", filters.assignee_email);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE}/tasks${query}`, {
+      method: "GET",
+      headers: this.getHeaders(token, wsId),
+    });
+    const data = await this.handleResponse<any>(res);
+    const tasks = Array.isArray(data) ? data : data.tasks || [];
+    return { status: "SUCCESS", count: tasks.length, tasks };
+  }
+
+  async createTask(
+    token: string,
+    taskData: {
+      workspace_id?: string;
+      title: string;
+      description?: string;
+      priority: string;
+      assignees?: any[];
+      assignee_email?: string;
+      assignee_name?: string;
+      due_date?: string;
+      tags?: string[];
+      status?: string;
+    }
+  ): Promise<{ status: string; task: Task }> {
+    const wsId = taskData.workspace_id || this.activeWorkspaceId;
+    const body = {
+      ...taskData,
+      workspace_id: wsId,
+    };
+    const res = await fetch(`${API_BASE}/tasks`, {
+      method: "POST",
+      headers: this.getHeaders(token, wsId),
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse(res);
+  }
+
+  async updateTask(token: string, taskId: string, updates: Partial<Task>): Promise<{ status: string; task: Task }> {
+    const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      headers: this.getHeaders(token),
+      body: JSON.stringify(updates),
+    });
+    return this.handleResponse(res);
+  }
+
+  async deleteTask(token: string, taskId: string): Promise<{ status: string; deleted_task_id: string }> {
+    const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
+    });
+    return this.handleResponse(res);
+  }
+
+  // =========================================================================
+  // Workspace Team Management Endpoints
+  // =========================================================================
+
+  async getWorkspaceMembers(
+    token: string,
+    workspaceId: string,
+    statusFilter?: string
+  ): Promise<{ status: string; count: number; members: WorkspaceMember[] }> {
+    const params = new URLSearchParams();
+    if (statusFilter && statusFilter !== "all") params.append("status_filter", statusFilter);
+    const query = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/members${query}`, {
+      method: "GET",
+      headers: this.getHeaders(token, workspaceId),
+    });
+    const data = await this.handleResponse<any>(res);
+    const members = Array.isArray(data) ? data : data.members || [];
+    return { status: "SUCCESS", count: members.length, members };
+  }
+
+  async inviteWorkspaceMember(
+    token: string,
+    workspaceId: string,
+    payload: {
+      email: string;
+      name?: string;
+      role: string;
+      department?: string;
+    }
+  ): Promise<{ status: string; message: string; member: any; invite_token?: string; invite_url?: string }> {
+    const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/invite`, {
+      method: "POST",
+      headers: this.getHeaders(token, workspaceId),
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse(res);
+  }
+
+  async updateWorkspaceMemberRole(
+    token: string,
+    workspaceId: string,
+    memberIdOrEmail: string,
+    role: string
+  ): Promise<{ status: string; message?: string; member: any }> {
+    const res = await fetch(
+      `${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberIdOrEmail)}/role`,
+      {
+        method: "PATCH",
+        headers: this.getHeaders(token, workspaceId),
+        body: JSON.stringify({ role }),
+      }
+    );
+    return this.handleResponse(res);
+  }
+
+  async removeWorkspaceMember(
+    token: string,
+    workspaceId: string,
+    memberIdOrEmail: string
+  ): Promise<{ status: string; removed_member?: string; message?: string }> {
+    const res = await fetch(
+      `${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberIdOrEmail)}`,
+      {
+        method: "DELETE",
+        headers: this.getHeaders(token, workspaceId),
+      }
+    );
+    return this.handleResponse(res);
+  }
+
+  // =========================================================================
+  // Workspace Invite Verification & Acceptance
+  // =========================================================================
+
+  async verifyWorkspaceInvite(token: string): Promise<{
+    status: string;
+    email: string;
+    name: string;
+    role: string;
+    department: string;
+    invited_by: string;
+    workspace_name?: string;
+    workspace_id?: string;
+    workspace_slug?: string;
+    expires_at?: string;
+  }> {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/invite/verify?token=${encodeURIComponent(token)}`);
+      return await this.handleResponse(res);
+    } catch {
+      // Fallback to legacy endpoint if backend mounts at /team/invite/verify
+      const res = await fetch(`${API_BASE}/team/invite/verify?token=${encodeURIComponent(token)}`);
+      return await this.handleResponse(res);
+    }
+  }
+
+  async acceptWorkspaceInvite(payload: {
+    token: string;
+    password: string;
+    name?: string;
+  }): Promise<AuthSuccessResponse> {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/invite/accept`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return await this.handleResponse<AuthSuccessResponse>(res);
+    } catch {
+      // Fallback to legacy endpoint if backend mounts at /team/invite/accept
+      const res = await fetch(`${API_BASE}/team/invite/accept`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return await this.handleResponse<AuthSuccessResponse>(res);
+    }
+  }
+
+  // =========================================================================
+  // Legacy & Fallback Aliases
+  // =========================================================================
+
+  async getTeamMembers(token: string): Promise<{ status: string; count: number; members: any[] }> {
+    if (this.activeWorkspaceId) {
+      try {
+        return await this.getWorkspaceMembers(token, this.activeWorkspaceId);
+      } catch {
+        // Fallback
+      }
+    }
+    const res = await fetch(`${API_BASE}/team/members`, {
+      method: "GET",
+      headers: this.getHeaders(token),
+    });
+    return this.handleResponse(res);
+  }
+
+  async inviteTeamMember(
+    token: string,
+    payload: {
+      email: string;
+      name?: string;
+      role?: string;
+      department?: string;
+    }
+  ): Promise<{ status: string; message: string; member: any; invite_token?: string; invite_url?: string }> {
+    if (this.activeWorkspaceId) {
+      try {
+        return await this.inviteWorkspaceMember(token, this.activeWorkspaceId, {
+          email: payload.email,
+          name: payload.name,
+          role: payload.role || "viewer",
+          department: payload.department,
+        });
+      } catch {
+        // Fallback
+      }
+    }
+    const res = await fetch(`${API_BASE}/team/invite`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse(res);
+  }
+
+  async verifyInvite(token: string) {
+    return this.verifyWorkspaceInvite(token);
+  }
+
+  async acceptInvite(payload: { token: string; password: string; name?: string }) {
+    return this.acceptWorkspaceInvite(payload);
+  }
+
+  async removeTeamMember(token: string, memberEmail: string) {
+    if (this.activeWorkspaceId) {
+      try {
+        return await this.removeWorkspaceMember(token, this.activeWorkspaceId, memberEmail);
+      } catch {
+        // Fallback
+      }
+    }
+    const res = await fetch(`${API_BASE}/team/members/${encodeURIComponent(memberEmail)}`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
     });
     return this.handleResponse(res);
   }
@@ -208,6 +553,13 @@ class ApiClient {
     count: number;
     logs: any[];
   }> {
+    if (this.activeWorkspaceId) {
+      try {
+        return await this.getWorkspaceAuditLogs(token, this.activeWorkspaceId, { limit, offset });
+      } catch {
+        // Fallback
+      }
+    }
     const res = await fetch(`${API_BASE}/audit/logs?limit=${limit}&offset=${offset}`, {
       method: "GET",
       headers: this.getHeaders(token),
@@ -258,119 +610,6 @@ class ApiClient {
     });
     return this.handleResponse<AuthSuccessResponse>(res);
   }
-
-  // =========================================================================
-  // Task Management Endpoints
-  // =========================================================================
-
-  async getTasks(
-    token: string,
-    filters?: { status?: string; priority?: string; assignee_email?: string }
-  ): Promise<{ status: string; count: number; tasks: any[] }> {
-    const params = new URLSearchParams();
-    if (filters?.status) params.append("status", filters.status);
-    if (filters?.priority) params.append("priority", filters.priority);
-    if (filters?.assignee_email) params.append("assignee_email", filters.assignee_email);
-
-    const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/tasks${query}`, {
-      method: "GET",
-      headers: this.getHeaders(token),
-    });
-    return this.handleResponse(res);
-  }
-
-  async createTask(token: string, taskData: any): Promise<{ status: string; task: any }> {
-    const res = await fetch(`${API_BASE}/tasks`, {
-      method: "POST",
-      headers: this.getHeaders(token),
-      body: JSON.stringify(taskData),
-    });
-    return this.handleResponse(res);
-  }
-
-  async updateTask(token: string, taskId: string, updates: any): Promise<{ status: string; task: any }> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
-      method: "PATCH",
-      headers: this.getHeaders(token),
-      body: JSON.stringify(updates),
-    });
-    return this.handleResponse(res);
-  }
-
-  async deleteTask(token: string, taskId: string): Promise<{ status: string; deleted_task_id: string }> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
-      method: "DELETE",
-      headers: this.getHeaders(token),
-    });
-    return this.handleResponse(res);
-  }
-
-  // =========================================================================
-  // Team Management Endpoints
-  // =========================================================================
-
-  async getTeamMembers(token: string): Promise<{ status: string; count: number; members: any[] }> {
-    const res = await fetch(`${API_BASE}/team/members`, {
-      method: "GET",
-      headers: this.getHeaders(token),
-    });
-    return this.handleResponse(res);
-  }
-
-  async inviteTeamMember(
-    token: string,
-    payload: {
-      email: string;
-      name?: string;
-      role?: string;
-      department?: string;
-      provision_password?: string;
-    }
-  ): Promise<{ status: string; message: string; member: any }> {
-    const res = await fetch(`${API_BASE}/team/invite`, {
-      method: "POST",
-      headers: this.getHeaders(token),
-      body: JSON.stringify(payload),
-    });
-    return this.handleResponse(res);
-  }
-
-  async verifyInvite(token: string): Promise<{
-    status: string;
-    email: string;
-    name: string;
-    role: string;
-    department: string;
-    invited_by: string;
-    expires_at?: string;
-  }> {
-    const res = await fetch(`${API_BASE}/team/invite/verify?token=${encodeURIComponent(token)}`);
-    return this.handleResponse(res);
-  }
-
-  async acceptInvite(payload: {
-    token: string;
-    password: string;
-    name?: string;
-  }): Promise<AuthSuccessResponse> {
-    const res = await fetch(`${API_BASE}/team/invite/accept`, {
-      method: "POST",
-      headers: this.getHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return this.handleResponse<AuthSuccessResponse>(res);
-  }
-
-  async removeTeamMember(token: string, memberEmail: string): Promise<{ status: string; removed_email: string }> {
-    const res = await fetch(`${API_BASE}/team/members/${encodeURIComponent(memberEmail)}`, {
-      method: "DELETE",
-      headers: this.getHeaders(token),
-    });
-    return this.handleResponse(res);
-  }
 }
 
 export const api = new ApiClient();
-
-

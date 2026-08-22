@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Task, TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { AlertCircle, Calendar, Trash2, CheckCircle2, Clock, Users, Tag, Check, UserPlus } from "lucide-react";
+import { AlertCircle, Calendar, Trash2, CheckCircle2, Clock, Users, Tag, Check, Lock } from "lucide-react";
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -29,7 +29,7 @@ export function TaskDetailModal({
   onTaskDeleted,
   members,
 }: TaskDetailModalProps) {
-  const { token, user } = useAuth();
+  const { token, user, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -57,11 +57,13 @@ export function TaskDetailModal({
       if (task.assignees && task.assignees.length > 0) {
         setSelectedAssignees(task.assignees);
       } else if (task.assignee_email) {
-        setSelectedAssignees([{
-          email: task.assignee_email,
-          name: task.assignee_name || task.assignee_email.split("@")[0],
-          avatar_url: task.assignee_avatar,
-        }]);
+        setSelectedAssignees([
+          {
+            email: task.assignee_email,
+            name: task.assignee_name || task.assignee_email.split("@")[0],
+            avatar_url: task.assignee_avatar,
+          },
+        ]);
       } else {
         setSelectedAssignees([]);
       }
@@ -72,22 +74,25 @@ export function TaskDetailModal({
 
   if (!task) return null;
 
+  // RBAC Permission checks
+  const canEdit = !isViewer;
+  const isOwner =
+    task.created_by?.toLowerCase() === user?.email?.toLowerCase() ||
+    task.created_by === user?.id ||
+    task.created_by === user?.username;
+  const canDelete = isAdmin || ((isDeveloper || isEditor) && isOwner);
+
   // Resolve assigner's real username & profile photo
   const creatorMember = members.find(
     (m) => m.email.toLowerCase() === (task.created_by || "").toLowerCase() || m.id === task.created_by
   );
   const creatorDisplayName =
     creatorMember?.name ||
-    (task.created_by?.toLowerCase() === user?.email?.toLowerCase()
-      ? user?.metadata?.name || user?.username
-      : task.created_by?.split("@")[0] || "Workspace Member");
-  const creatorAvatar =
-    creatorMember?.avatar_url ||
-    (task.created_by?.toLowerCase() === user?.email?.toLowerCase()
-      ? user?.metadata?.avatar_url
-      : undefined);
+    (isOwner ? user?.metadata?.name || user?.username : task.created_by?.split("@")[0] || "Workspace Member");
+  const creatorAvatar = creatorMember?.avatar_url || (isOwner ? user?.metadata?.avatar_url : undefined);
 
   const handleToggleAssignee = (member: TeamMember) => {
+    if (!canEdit) return;
     const exists = selectedAssignees.some((a) => a.email.toLowerCase() === member.email.toLowerCase());
     if (exists) {
       setSelectedAssignees((prev) => prev.filter((a) => a.email.toLowerCase() !== member.email.toLowerCase()));
@@ -105,6 +110,7 @@ export function TaskDetailModal({
 
   const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     if (!title.trim()) {
       setError("Task title cannot be blank.");
       return;
@@ -125,11 +131,11 @@ export function TaskDetailModal({
         description: description.trim(),
         status,
         priority,
-        due_date: dueDate || null,
+        due_date: dueDate || undefined,
         tags,
         assignees: selectedAssignees,
-        assignee_email: selectedAssignees.length > 0 ? selectedAssignees[0].email : null,
-        assignee_name: selectedAssignees.length > 0 ? selectedAssignees[0].name : null,
+        assignee_email: selectedAssignees.length > 0 ? selectedAssignees[0].email : undefined,
+        assignee_name: selectedAssignees.length > 0 ? selectedAssignees[0].name : undefined,
       });
 
       onTaskUpdated();
@@ -142,7 +148,7 @@ export function TaskDetailModal({
   };
 
   const handleConfirmDelete = async () => {
-    if (!token) return;
+    if (!token || !canDelete) return;
     setIsDeleting(true);
     try {
       await api.deleteTask(token, task.id);
@@ -162,7 +168,11 @@ export function TaskDetailModal({
         isOpen={isOpen}
         onClose={onClose}
         title="Task Deliverable Details"
-        description="Inspect task specifications, assigned personnel, deadlines, and progress."
+        description={
+          canEdit
+            ? "Inspect and update task specifications, assignees, deadlines, and status."
+            : "Read-only view of task specifications (Viewer clearance)."
+        }
       >
         <form onSubmit={handleSaveChanges} noValidate className="space-y-4 pt-1">
           {error && (
@@ -172,11 +182,19 @@ export function TaskDetailModal({
             </div>
           )}
 
+          {!canEdit && (
+            <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-secondary/40 p-2.5 text-xs text-muted-foreground">
+              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>You have Viewer clearance. Task modifications are restricted.</span>
+            </div>
+          )}
+
           {/* Task Title */}
           <Input
             label="Title"
             type="text"
             required
+            disabled={!canEdit}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title..."
@@ -190,12 +208,12 @@ export function TaskDetailModal({
               </label>
               <select
                 value={status}
+                disabled={!canEdit}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
+                className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
               >
                 <option value="todo">To Do</option>
                 <option value="in_progress">In Progress</option>
-                <option value="review">In Review</option>
                 <option value="done">Completed</option>
               </select>
             </div>
@@ -206,8 +224,9 @@ export function TaskDetailModal({
               </label>
               <select
                 value={priority}
+                disabled={!canEdit}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
+                className="flex h-10 w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
               >
                 <option value="low">Low Priority</option>
                 <option value="medium">Medium Priority</option>
@@ -224,7 +243,8 @@ export function TaskDetailModal({
             </label>
             <textarea
               rows={3}
-              className="flex w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary custom-scrollbar resize-none"
+              disabled={!canEdit}
+              className="flex w-full rounded-lg border border-input bg-background dark:bg-slate-900/80 px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary custom-scrollbar resize-none disabled:opacity-60 disabled:cursor-not-allowed"
               placeholder="Detailed specifications, instructions, or deliverables..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -237,7 +257,7 @@ export function TaskDetailModal({
               <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
                 Assigned Personnel ({selectedAssignees.length})
               </label>
-              <span className="text-[10px] text-muted-foreground">Select team members to collaborate</span>
+              {canEdit && <span className="text-[10px] text-muted-foreground">Select team members</span>}
             </div>
 
             <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
@@ -247,8 +267,11 @@ export function TaskDetailModal({
                   <button
                     key={m.email}
                     type="button"
+                    disabled={!canEdit}
                     onClick={() => handleToggleAssignee(m)}
-                    className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all cursor-pointer ${
+                    className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all ${
+                      canEdit ? "cursor-pointer" : "cursor-default"
+                    } ${
                       isSelected
                         ? "bg-primary/10 border border-primary/40 text-foreground"
                         : "hover:bg-muted/60 border border-transparent text-foreground/80"
@@ -282,6 +305,7 @@ export function TaskDetailModal({
             <Input
               label="Target Deadline"
               type="date"
+              disabled={!canEdit}
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />
@@ -289,6 +313,7 @@ export function TaskDetailModal({
             <Input
               label="Tags (comma separated)"
               type="text"
+              disabled={!canEdit}
               placeholder="e.g. Frontend, Auth, API"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
@@ -306,31 +331,37 @@ export function TaskDetailModal({
                 </p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-[10px] font-bold tracking-wider">
+            <Badge variant={task.priority as any} className="text-[10px] font-bold tracking-wider">
               {task.priority.toUpperCase()}
             </Badge>
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-3 border-t border-border/70">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/50"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Delete</span>
-            </Button>
+            <div>
+              {canDelete && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
+                </Button>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={onClose}>
-                Cancel
+                {canEdit ? "Cancel" : "Close"}
               </Button>
-              <Button type="submit" size="sm" isLoading={isSaving}>
-                Save Changes
-              </Button>
+              {canEdit && (
+                <Button type="submit" size="sm" isLoading={isSaving}>
+                  Save Changes
+                </Button>
+              )}
             </div>
           </div>
         </form>
@@ -343,7 +374,7 @@ export function TaskDetailModal({
         onConfirm={handleConfirmDelete}
         isLoading={isDeleting}
         title="Delete Task Deliverable"
-        description={`Are you sure you want to permanently delete "${task.title}" from the task board? This action cannot be undone.`}
+        description={`Are you sure you want to permanently delete "${task.title}" from this workspace? This action cannot be undone.`}
         confirmText="Delete Task"
         cancelText="Cancel"
         variant="destructive"

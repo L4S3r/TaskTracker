@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Plus } from "lucide-react";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -19,7 +19,7 @@ interface TaskModalProps {
 }
 
 export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModalProps) {
-  const { user, token } = useAuth();
+  const { user, token, activeWorkspace, isViewer } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
@@ -48,6 +48,10 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isViewer) {
+      setError("Viewer clearance is read-only. You cannot create tasks.");
+      return;
+    }
     if (!title.trim()) {
       setError("Please enter a task title.");
       return;
@@ -57,21 +61,28 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
     setIsLoading(true);
     setError(null);
 
-
     const tags = tagsInput
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
 
     // If no assignees selected, default to assigning to oneself
-    const finalAssignees = selectedAssignees.length > 0 ? selectedAssignees : (user?.email ? [{
-      email: user.email,
-      name: user.metadata?.name || user.username || user.email.split("@")[0],
-      avatar_url: user.metadata?.avatar_url,
-    }] : []);
+    const finalAssignees =
+      selectedAssignees.length > 0
+        ? selectedAssignees
+        : user?.email
+        ? [
+            {
+              email: user.email,
+              name: user.metadata?.name || user.username || user.email.split("@")[0],
+              avatar_url: user.metadata?.avatar_url,
+            },
+          ]
+        : [];
 
     try {
       await api.createTask(token, {
+        workspace_id: activeWorkspace?.id,
         title: title.trim(),
         description: description.trim(),
         priority,
@@ -101,8 +112,8 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create New Team Task"
-      description="Add a task to the board, schedule deliverables, and assign to one or multiple colleagues."
+      title="Create New Sprint Task"
+      description={`Add a deliverable to ${activeWorkspace?.name || "the workspace"} and assign collaborators.`}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
         {error && (
@@ -153,7 +164,7 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
-              Initial Column
+              Initial Stage
             </label>
             <select
               value={status}
@@ -162,7 +173,6 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
             >
               <option value="todo">To Do</option>
               <option value="in_progress">In Progress</option>
-              <option value="review">In Review</option>
               <option value="done">Completed</option>
             </select>
           </div>
@@ -174,7 +184,7 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
             <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
               Assign Personnel ({selectedAssignees.length > 0 ? `${selectedAssignees.length} selected` : "Assigned to Me"})
             </label>
-            <span className="text-[10px] text-muted-foreground">Select one or multiple members</span>
+            <span className="text-[10px] text-muted-foreground">Select workspace members</span>
           </div>
 
           <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
@@ -207,6 +217,10 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
                 </button>
               );
             })}
+
+            {members.length === 0 && (
+              <p className="text-[11px] text-muted-foreground p-3 text-center">No workspace members found.</p>
+            )}
           </div>
         </div>
 
@@ -231,7 +245,7 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
           <Button type="button" variant="outline" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" size="sm" isLoading={isLoading}>
+          <Button type="submit" size="sm" isLoading={isLoading} disabled={isViewer}>
             Create Task Deliverable
           </Button>
         </div>
