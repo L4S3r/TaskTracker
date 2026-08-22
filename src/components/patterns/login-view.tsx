@@ -60,14 +60,14 @@ export function LoginView() {
     }
   };
 
-  const handleCompleteMFA = async (code: string) => {
+  const handleCompleteMFA = async (code: string, rememberDevice: boolean = true) => {
     if (!mfaChallenge) return;
 
     setMfaLoading(true);
     setMfaError(null);
 
     try {
-      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code);
+      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
         loginSuccess(res);
         setMfaChallenge(null);

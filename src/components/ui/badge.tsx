@@ -19,7 +19,8 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
     | "viewer"
     | "info"
     | "warning"
-    | "critical";
+    | "critical"
+    | "success";
 }
 
 export function Badge({ className, variant = "default", ...props }: BadgeProps) {
@@ -41,6 +42,7 @@ export function Badge({ className, variant = "default", ...props }: BadgeProps) 
     info: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium",
     warning: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold",
     critical: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold",
+    success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold",
   };
 
   return (

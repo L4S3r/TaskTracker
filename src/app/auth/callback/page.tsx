@@ -63,14 +63,14 @@ function OAuthCallbackContent() {
       });
   }, [searchParams, router, loginSuccess]);
 
-  const handleCompleteOAuthMFA = async (code: string) => {
+  const handleCompleteOAuthMFA = async (code: string, rememberDevice: boolean = true) => {
     if (!mfaChallenge) return;
 
     setIsVerifyingMFA(true);
     setMfaError(null);
 
     try {
-      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code);
+      const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
         loginSuccess(res);
         localStorage.removeItem("oauth_provider");

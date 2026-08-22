@@ -11,13 +11,12 @@ import {
   AlertCircle,
   ArrowRight,
   HelpCircle,
-  Sparkles,
 } from "lucide-react";
 
 interface MfaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onVerify: (code: string) => Promise<void>;
+  onVerify: (code: string, rememberDevice: boolean) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   title?: string;
@@ -36,17 +35,18 @@ export function MfaModal({
   const [mfaCode, setMfaCode] = useState("");
   const [isBackupMode, setIsBackupMode] = useState(false);
   const [backupCode, setBackupCode] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   const handleFormSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const finalCode = isBackupMode ? backupCode.trim() : mfaCode.trim();
     if (!finalCode) return;
-    await onVerify(finalCode);
+    await onVerify(finalCode, rememberDevice);
   };
 
   const handleOtpComplete = async (completedCode: string) => {
     if (!isBackupMode && completedCode.length === 6) {
-      await onVerify(completedCode);
+      await onVerify(completedCode, rememberDevice);
     }
   };
 
@@ -128,7 +128,7 @@ export function MfaModal({
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {!isBackupMode ? (
             /* Segmented 6-digit OTP code input */
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               <label className="block text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Enter 6-Digit Code
               </label>
@@ -142,6 +142,17 @@ export function MfaModal({
                 autoFocus={true}
                 hasError={Boolean(error)}
               />
+
+              {/* Remember This Device Checkbox */}
+              <label className="flex items-center justify-center gap-2 text-xs text-muted-foreground cursor-pointer select-none py-1 hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="rounded border-border text-primary h-4 w-4 focus:ring-primary/30 cursor-pointer"
+                />
+                <span>Remember this device for 30 days</span>
+              </label>
 
               <p className="text-[11px] text-center text-muted-foreground">
                 Codes rotate every 30 seconds (Google Authenticator / Authy / 1Password).
@@ -165,6 +176,18 @@ export function MfaModal({
                   className="flex h-12 min-h-[48px] w-full rounded-xl border border-input bg-card pl-10 pr-4 text-center font-mono text-base font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary shadow-xs"
                 />
               </div>
+
+              {/* Remember This Device Checkbox */}
+              <label className="flex items-center justify-center gap-2 text-xs text-muted-foreground cursor-pointer select-none py-1 hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="rounded border-border text-primary h-4 w-4 focus:ring-primary/30 cursor-pointer"
+                />
+                <span>Remember this device for 30 days</span>
+              </label>
+
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Enter one of your single-use recovery backup codes generated during 2FA activation.
               </p>

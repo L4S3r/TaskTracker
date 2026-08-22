@@ -175,6 +175,8 @@ export function TeamManager() {
       } else {
         await api.removeTeamMember(token, memberToDelete.email);
       }
+      setSuccessMessage("Member removed from workspace");
+      setTimeout(() => setSuccessMessage(null), 3500);
       await fetchMembers();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to remove member.");

@@ -4,7 +4,7 @@
  * Interfaces with the Auth N&Z Security Gateway & Multi-Tenant Backend.
  */
 
-import { Task, Workspace, WorkspaceMember, AuditLog } from "./tasks-store";
+import { Task, Workspace, WorkspaceMember, AuditLog, TrustedDevice } from "./tasks-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || "https://auth-api.l4s3r.site";
 
@@ -30,6 +30,7 @@ export interface AuthSuccessResponse {
   access_token: string;
   refresh_token: string;
   session_id?: string;
+  mfa_skipped?: boolean;
   user?: UserProfile;
   workspace?: Workspace;
   active_workspace?: Workspace;
@@ -117,6 +118,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: this.getHeaders(),
+      credentials: "include",
       body: JSON.stringify({ identifier, password }),
     });
     return this.handleResponse<LoginResponse>(res);
@@ -126,16 +128,28 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: this.getHeaders(),
+      credentials: "include",
       body: JSON.stringify({ username, email, password }),
     });
     return this.handleResponse<{ status: string; user: UserProfile }>(res);
   }
 
-  async completeMFA(userId: string, challengeId: string, code: string): Promise<AuthSuccessResponse> {
+  async completeMFA(
+    userId: string,
+    challengeId: string,
+    code: string,
+    rememberDevice: boolean = true
+  ): Promise<AuthSuccessResponse> {
     const res = await fetch(`${API_BASE}/auth/mfa/complete`, {
       method: "POST",
       headers: this.getHeaders(),
-      body: JSON.stringify({ user_id: userId, challenge_id: challengeId, code }),
+      credentials: "include",
+      body: JSON.stringify({
+        user_id: userId,
+        challenge_id: challengeId,
+        code,
+        remember_device: rememberDevice,
+      }),
     });
     return this.handleResponse<AuthSuccessResponse>(res);
   }
@@ -149,6 +163,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/mfa/setup`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }
@@ -157,6 +172,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/mfa/verify-setup`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify({ code }),
     });
     return this.handleResponse(res);
@@ -166,6 +182,40 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/mfa/disable`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse(res);
+  }
+
+  // =========================================================================
+  // Trusted Devices Endpoints
+  // =========================================================================
+
+  async getTrustedDevices(token: string): Promise<{ status: string; devices: TrustedDevice[] }> {
+    const res = await fetch(`${API_BASE}/auth/trusted-devices`, {
+      method: "GET",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    const data = await this.handleResponse<any>(res);
+    const devices = Array.isArray(data) ? data : data.devices || [];
+    return { status: "SUCCESS", devices };
+  }
+
+  async revokeTrustedDevice(token: string, deviceId: string): Promise<{ status: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/trusted-devices/${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse(res);
+  }
+
+  async revokeAllTrustedDevices(token: string): Promise<{ status: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/trusted-devices`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }

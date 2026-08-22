@@ -78,3 +78,19 @@ export interface AuditLog {
   metadata?: Record<string, any>;
 }
 
+export interface TrustedDevice {
+  id: string;
+  device_label?: string;
+  label?: string;
+  user_agent?: string;
+  ip_address?: string;
+  ip?: string;
+  location?: string;
+  is_current_device?: boolean;
+  is_current?: boolean;
+  created_at?: string;
+  last_active?: string;
+  last_used_at?: string;
+  expires_at?: string;
+}
+
