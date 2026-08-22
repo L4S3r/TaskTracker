@@ -67,9 +67,13 @@ export function AuditLogsView() {
     }
   }, [token, activeWorkspace?.id, eventTypeFilter, severityFilter]);
 
+  // Immediate cache invalidation on workspace switch: clear previous workspace's audit telemetry
   useEffect(() => {
+    setLogs([]);
+    setIsLoading(true);
+    setError(null);
     fetchAuditLogs();
-  }, [fetchAuditLogs]);
+  }, [activeWorkspace?.id, fetchAuditLogs]);
 
   const handleCopyJson = (log: AuditLog, id: string) => {
     navigator.clipboard.writeText(JSON.stringify(log, null, 2));

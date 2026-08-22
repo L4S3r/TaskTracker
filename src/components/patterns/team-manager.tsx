@@ -70,9 +70,13 @@ export function TeamManager() {
     }
   }, [token, activeWorkspace?.id]);
 
+  // Immediate cache invalidation on workspace switch: clear previous workspace's members
   useEffect(() => {
+    setMembers([]);
+    setIsLoading(true);
+    setErrorMessage(null);
     fetchMembers();
-  }, [fetchMembers]);
+  }, [activeWorkspace?.id, fetchMembers]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();

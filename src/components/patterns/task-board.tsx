@@ -123,9 +123,14 @@ export function TaskBoard() {
     }
   }, [token, activeWorkspace?.id]);
 
+  // Immediate cache invalidation on workspace switch: clear previous workspace's tasks & members
   useEffect(() => {
+    setTasks([]);
+    setMembers([]);
+    setIsLoading(true);
+    setError(null);
     fetchTasksAndMembers();
-  }, [fetchTasksAndMembers]);
+  }, [activeWorkspace?.id, fetchTasksAndMembers]);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     if (!token || !canMove) return;

@@ -29,7 +29,7 @@ export function TaskDetailModal({
   onTaskDeleted,
   members,
 }: TaskDetailModalProps) {
-  const { token, user, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
+  const { token, user, activeWorkspace, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -257,11 +257,15 @@ export function TaskDetailModal({
               <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
                 Assigned Personnel ({selectedAssignees.length})
               </label>
-              {canEdit && <span className="text-[10px] text-muted-foreground">Select team members</span>}
+              {canEdit && (
+                <span className="text-[10px] text-muted-foreground">
+                  Select {activeWorkspace?.name || "workspace"} members
+                </span>
+              )}
             </div>
 
             <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
-              {members.map((m) => {
+              {members.filter((m) => m.status === "active" || !m.status).map((m) => {
                 const isSelected = selectedAssignees.some((a) => a.email.toLowerCase() === m.email.toLowerCase());
                 return (
                   <button

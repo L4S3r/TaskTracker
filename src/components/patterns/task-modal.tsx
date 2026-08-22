@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
+import { TaskPriority, TaskStatus, TeamMember, WorkspaceMember } from "@/lib/tasks-store";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { AlertCircle, Check, Plus } from "lucide-react";
+import { AlertCircle, Check, Building2, Users } from "lucide-react";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ interface TaskModalProps {
   members: TeamMember[];
 }
 
-export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onTaskCreated, members: propMembers }: TaskModalProps) {
   const { user, token, activeWorkspace, isViewer } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -27,8 +27,37 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
   const [dueDate, setDueDate] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [selectedAssignees, setSelectedAssignees] = useState<{ email: string; name: string; avatar_url?: string }[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Strictly fetch and populate active members for the active workspace
+  useEffect(() => {
+    if (!isOpen || !token) return;
+
+    const wsId = activeWorkspace?.id;
+    if (wsId) {
+      setIsLoadingMembers(true);
+      api
+        .getWorkspaceMembers(token, wsId)
+        .then((res) => {
+          const rawList = res.members || [];
+          // Filter to active workspace members or those with registered status
+          const activeList = rawList.filter((m) => m.status === "active" || !m.status);
+          setWorkspaceMembers(activeList.length > 0 ? activeList : rawList);
+        })
+        .catch(() => {
+          // Fallback to prop members filtered for active status
+          setWorkspaceMembers(propMembers.filter((m) => m.status === "active" || !m.status));
+        })
+        .finally(() => {
+          setIsLoadingMembers(false);
+        });
+    } else {
+      setWorkspaceMembers(propMembers.filter((m) => m.status === "active" || !m.status));
+    }
+  }, [isOpen, token, activeWorkspace?.id, propMembers]);
 
   const handleToggleAssignee = (member: TeamMember) => {
     const exists = selectedAssignees.some((a) => a.email.toLowerCase() === member.email.toLowerCase());
@@ -108,6 +137,8 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
     }
   };
 
+  const activeMembersList = workspaceMembers.length > 0 ? workspaceMembers : propMembers;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -178,48 +209,64 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members }: TaskModal
           </div>
         </div>
 
-        {/* Group Assignee Selector */}
+        {/* Workspace Assignee Selector */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
               Assign Personnel ({selectedAssignees.length > 0 ? `${selectedAssignees.length} selected` : "Assigned to Me"})
             </label>
-            <span className="text-[10px] text-muted-foreground">Select workspace members</span>
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Building2 className="h-3 w-3 text-primary" />
+              <span>{activeWorkspace?.name || "Workspace"} Members</span>
+            </span>
           </div>
 
           <div className="max-h-36 overflow-y-auto custom-scrollbar rounded-xl border border-border/80 bg-secondary/30 p-2 space-y-1">
-            {members.map((m) => {
-              const isSelected = selectedAssignees.some((a) => a.email.toLowerCase() === m.email.toLowerCase());
-              return (
-                <button
-                  key={m.email}
-                  type="button"
-                  onClick={() => handleToggleAssignee(m)}
-                  className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-primary/10 border border-primary/40 text-foreground"
-                      : "hover:bg-muted/60 border border-transparent text-foreground/80"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
-                    <div className="text-left">
-                      <span className="font-semibold text-foreground block leading-tight">{m.name || m.email.split("@")[0]}</span>
-                      <span className="text-[10px] text-muted-foreground">{m.email} &bull; {m.role}</span>
+            {isLoadingMembers ? (
+              <div className="flex items-center justify-center py-4 gap-2 text-xs text-muted-foreground">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span>Loading {activeWorkspace?.name || "workspace"} members...</span>
+              </div>
+            ) : (
+              activeMembersList.map((m) => {
+                const isSelected = selectedAssignees.some((a) => a.email.toLowerCase() === m.email.toLowerCase());
+                const roleKey = (m.role || "viewer").toLowerCase();
+                return (
+                  <button
+                    key={m.email}
+                    type="button"
+                    onClick={() => handleToggleAssignee(m)}
+                    className={`flex w-full items-center justify-between p-2 rounded-lg text-xs transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-primary/10 border border-primary/40 text-foreground"
+                        : "hover:bg-muted/60 border border-transparent text-foreground/80"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
+                      <div className="text-left">
+                        <span className="font-semibold text-foreground block leading-tight">{m.name || m.email.split("@")[0]}</span>
+                        <span className="text-[10px] text-muted-foreground">{m.email}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {isSelected && (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
-                      <Check className="h-3 w-3" />
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={roleKey as any} className="text-[9px] px-1.5 py-0 uppercase">
+                        {roleKey}
+                      </Badge>
+                      {isSelected && (
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })
+            )}
 
-            {members.length === 0 && (
-              <p className="text-[11px] text-muted-foreground p-3 text-center">No workspace members found.</p>
+            {!isLoadingMembers && activeMembersList.length === 0 && (
+              <p className="text-[11px] text-muted-foreground p-3 text-center">No active workspace members found.</p>
             )}
           </div>
         </div>
