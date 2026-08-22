@@ -282,9 +282,11 @@ export function TaskDetailModal({
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
+                      <Avatar name={m.name || m.username || m.email} src={m.avatar_url} size="sm" />
                       <div className="text-left">
-                        <p className="font-semibold text-foreground leading-tight">{m.name || m.email.split("@")[0]}</p>
+                        <p className="font-semibold text-foreground leading-tight">
+                          {m.name || (m.username ? `@${m.username}` : m.email)}
+                        </p>
                         <p className="text-[10px] text-muted-foreground">{m.email} &bull; {m.role}</p>
                       </div>
                     </div>

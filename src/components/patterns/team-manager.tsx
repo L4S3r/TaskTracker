@@ -40,7 +40,6 @@ export function TeamManager() {
 
   // Invite Form State
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>("viewer");
   const [inviteDept, setInviteDept] = useState("Engineering");
 
@@ -99,7 +98,6 @@ export function TeamManager() {
     try {
       const payload = {
         email: inviteEmail.trim().toLowerCase(),
-        name: inviteName.trim() || undefined,
         role: inviteRole,
         department: inviteDept.trim() || "General",
       };
@@ -118,7 +116,6 @@ export function TeamManager() {
 
       await fetchMembers();
       setInviteEmail("");
-      setInviteName("");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to dispatch invitation.");
     } finally {
@@ -349,16 +346,18 @@ export function TeamManager() {
                       <tr key={m.id || m.email} className="hover:bg-muted/30 transition-colors">
                         {/* Member Column */}
                         <td className="px-5 py-3.5 flex items-center gap-3">
-                          <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
+                          <Avatar name={m.name || m.username || m.email} src={m.avatar_url} size="sm" />
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-foreground leading-tight">{m.name || m.email.split("@")[0]}</p>
+                              <p className="font-semibold text-foreground leading-tight">
+                                {m.name || (m.username ? `@${m.username}` : m.email)}
+                              </p>
                               {isSelf && (
                                 <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.2 rounded font-semibold">You</span>
                               )}
                             </div>
                             <p className="text-[11px] text-muted-foreground">{m.email}</p>
-                            {m.username && m.username !== m.email && (
+                            {m.username && m.name && (
                               <p className="text-[10px] text-muted-foreground/70 font-mono">@{m.username}</p>
                             )}
                           </div>
@@ -499,14 +498,6 @@ export function TeamManager() {
             placeholder="colleague@l4s3r.site"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
-          />
-
-          <Input
-            label="Colleague Name (Optional)"
-            type="text"
-            placeholder="e.g. Jane Smith"
-            value={inviteName}
-            onChange={(e) => setInviteName(e.target.value)}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

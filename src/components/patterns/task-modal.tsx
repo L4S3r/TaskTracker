@@ -243,9 +243,11 @@ export function TaskModal({ isOpen, onClose, onTaskCreated, members: propMembers
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={m.name || m.email} src={m.avatar_url} size="sm" />
+                      <Avatar name={m.name || m.username || m.email} src={m.avatar_url} size="sm" />
                       <div className="text-left">
-                        <span className="font-semibold text-foreground block leading-tight">{m.name || m.email.split("@")[0]}</span>
+                        <span className="font-semibold text-foreground block leading-tight">
+                          {m.name || (m.username ? `@${m.username}` : m.email)}
+                        </span>
                         <span className="text-[10px] text-muted-foreground">{m.email}</span>
                       </div>
                     </div>

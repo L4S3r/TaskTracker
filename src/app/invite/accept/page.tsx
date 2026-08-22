@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckSquare, Shield, AlertCircle, CheckCircle2, ArrowRight, Eye, EyeOff, Building2, Sparkles } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
+import { CheckSquare, AlertCircle, ArrowRight, Eye, EyeOff, Building2, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 function getPasswordStrength(pass: string): { score: number; label: string; color: string } {
@@ -30,7 +31,7 @@ function AcceptInviteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const { loginSuccess } = useAuth();
+  const { user, loginSuccess, switchWorkspace, fetchWorkspaces } = useAuth();
 
   const [inviteData, setInviteData] = useState<{
     email: string;
@@ -64,7 +65,7 @@ function AcceptInviteContent() {
       .verifyWorkspaceInvite(token)
       .then((res) => {
         setInviteData(res);
-        setName(res.name || "");
+        if (res.name) setName(res.name);
       })
       .catch((err) => {
         setError(err.message || "This invitation link is invalid or has expired. Please request a fresh invite from your workspace administrator.");
@@ -75,6 +76,32 @@ function AcceptInviteContent() {
   }, [token]);
 
   const strength = getPasswordStrength(password);
+
+  const handleAcceptAsCurrentUser = async () => {
+    if (!token) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await api.acceptWorkspaceInvite({
+        token,
+        password: "",
+        name: user?.name || undefined,
+      });
+
+      loginSuccess(res);
+      if (res.active_workspace?.id) {
+        await switchWorkspace(res.active_workspace.id);
+      } else {
+        await fetchWorkspaces();
+      }
+      router.replace("/");
+    } catch (err: any) {
+      setError(err.message || "Failed to accept invitation. Please try again or log in.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +124,7 @@ function AcceptInviteContent() {
       const res = await api.acceptWorkspaceInvite({
         token,
         password,
-        name: name.trim() || inviteData.name,
+        name: name.trim() || inviteData.name || undefined,
       });
 
       loginSuccess(res);
@@ -204,80 +231,106 @@ function AcceptInviteContent() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            <Input
-              label="Full Name"
-              type="text"
-              required
-              placeholder="e.g. Jane Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+          {/* If already authenticated, allow seamless 1-click acceptance */}
+          {user ? (
+            <div className="space-y-3 pt-2">
+              <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 flex items-center gap-3">
+                <Avatar name={user.name || user.username} src={user.avatar_url} size="md" />
+                <div className="text-left">
+                  <p className="font-semibold text-xs text-foreground leading-tight">
+                    {user.name || user.username}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{user.email}</p>
+                </div>
+              </div>
 
-            <div className="space-y-1.5">
+              <Button
+                type="button"
+                size="lg"
+                isLoading={isSubmitting}
+                onClick={handleAcceptAsCurrentUser}
+                className="w-full gap-2 shadow-md"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Join Workspace as {user.name || user.username}</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3.5">
               <Input
-                label="Create Password"
-                type={showPassword ? "text" : "password"}
+                label="Full Name (Optional)"
+                type="text"
+                placeholder="e.g. Jane Doe"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+
+              <div className="space-y-1.5">
+                <Input
+                  label="Create Password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Minimum 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  endIcon={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
+                      title={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
+                />
+
+                {/* Password Strength Indicator */}
+                {password && (
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-muted-foreground">Strength:</span>
+                      <span className="font-semibold text-foreground">{strength.label}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${strength.color}`}
+                        style={{ width: `${(strength.score / 4) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Input
+                label="Confirm Password"
+                type={showConfirmPassword ? "text" : "password"}
                 required
-                placeholder="Minimum 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Repeat your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 endIcon={
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
-                    title={showPassword ? "Hide password" : "Show password"}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showConfirmPassword ? "Hide password" : "Show password"}
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 }
               />
 
-              {/* Password Strength Indicator */}
-              {password && (
-                <div className="space-y-1 pt-1">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">Strength:</span>
-                    <span className="font-semibold text-foreground">{strength.label}</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${strength.color}`}
-                      style={{ width: `${(strength.score / 4) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Input
-              label="Confirm Password"
-              type={showConfirmPassword ? "text" : "password"}
-              required
-              placeholder="Repeat your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              endIcon={
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
-                  title={showConfirmPassword ? "Hide password" : "Show password"}
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
-            />
-
-            <Button type="submit" size="lg" isLoading={isSubmitting} className="w-full gap-2 mt-2">
-              <Sparkles className="h-4 w-4" />
-              <span>Accept Invitation & Enter Workspace</span>
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </form>
+              <Button type="submit" size="lg" isLoading={isSubmitting} className="w-full gap-2 mt-2">
+                <Sparkles className="h-4 w-4" />
+                <span>Accept Invitation & Enter Workspace</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </form>
+          )}
         </CardContent>
 
         <CardFooter className="flex justify-center border-t border-border/70 p-4 text-[11px] text-muted-foreground">
