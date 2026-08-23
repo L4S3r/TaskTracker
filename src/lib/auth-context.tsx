@@ -452,6 +452,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await api.logout(token, undefined, logoutAll);
       } catch {}
     }
+    if (logoutAll && typeof window !== "undefined") {
+      localStorage.removeItem("trusted_device_token");
+    }
     clearAuthSession(true);
   };
 
