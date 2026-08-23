@@ -35,7 +35,6 @@ export interface AuthSuccessResponse {
   refresh_token: string;
   session_id?: string;
   mfa_skipped?: boolean;
-  trusted_device_token?: string;
   trusted_device?: TrustedDevice;
   user?: UserProfile;
   workspace?: Workspace;
@@ -72,12 +71,6 @@ class ApiClient {
     const wsId = workspaceId || this.activeWorkspaceId;
     if (wsId) {
       headers["X-Workspace-Id"] = wsId;
-    }
-    if (typeof window !== "undefined") {
-      const deviceToken = localStorage.getItem("trusted_device_token");
-      if (deviceToken) {
-        headers["X-Trusted-Device-Token"] = deviceToken;
-      }
     }
     return headers;
   }
@@ -127,25 +120,13 @@ class ApiClient {
   // =========================================================================
 
   async login(identifier: string, password: string): Promise<LoginResponse> {
-    const deviceToken = typeof window !== "undefined" ? localStorage.getItem("trusted_device_token") : null;
-    const payload: any = { identifier, password };
-    if (deviceToken) {
-      payload.trusted_device_token = deviceToken;
-    }
-
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: this.getHeaders(),
       credentials: "include",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ identifier, password }),
     });
-    const data = await this.handleResponse<any>(res);
-    if (data.status === "SUCCESS" && data.trusted_device_token) {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trusted_device_token", data.trusted_device_token);
-      }
-    }
-    return data;
+    return this.handleResponse<LoginResponse>(res);
   }
 
   async register(username: string, email: string, password: string): Promise<{ status: string; user: UserProfile }> {
@@ -164,30 +145,18 @@ class ApiClient {
     code: string,
     rememberDevice: boolean = true
   ): Promise<AuthSuccessResponse> {
-    const deviceToken = typeof window !== "undefined" ? localStorage.getItem("trusted_device_token") : null;
-    const payload: any = {
-      user_id: userId,
-      challenge_id: challengeId,
-      code,
-      remember_device: rememberDevice,
-    };
-    if (deviceToken) {
-      payload.trusted_device_token = deviceToken;
-    }
-
     const res = await fetch(`${API_BASE}/auth/mfa/complete`, {
       method: "POST",
       headers: this.getHeaders(),
       credentials: "include",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        user_id: userId,
+        challenge_id: challengeId,
+        code,
+        remember_device: rememberDevice,
+      }),
     });
-    const data = await this.handleResponse<any>(res);
-    if (data.status === "SUCCESS" && data.trusted_device_token) {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trusted_device_token", data.trusted_device_token);
-      }
-    }
-    return data;
+    return this.handleResponse<AuthSuccessResponse>(res);
   }
 
   async setupMFA(token: string): Promise<{
@@ -253,11 +222,7 @@ class ApiClient {
       headers: this.getHeaders(token),
       credentials: "include",
     });
-    const data = await this.handleResponse<{ status: string; message?: string }>(res);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("trusted_device_token");
-    }
-    return data;
+    return this.handleResponse<{ status: string; message?: string }>(res);
   }
 
   async refreshTokens(refreshToken: string): Promise<{

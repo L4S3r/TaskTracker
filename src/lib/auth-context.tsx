@@ -396,10 +396,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("auth_token", authData.access_token);
     localStorage.setItem("refresh_token", authData.refresh_token);
 
-    if (authData.trusted_device_token && typeof window !== "undefined") {
-      localStorage.setItem("trusted_device_token", authData.trusted_device_token);
-    }
-
     if (authData.user) {
       const cleanUser = normalizeUser(authData.user);
       setUser(cleanUser);
@@ -455,9 +451,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await api.logout(token, undefined, logoutAll);
       } catch {}
-    }
-    if (logoutAll && typeof window !== "undefined") {
-      localStorage.removeItem("trusted_device_token");
     }
     clearAuthSession(true);
   };
