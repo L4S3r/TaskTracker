@@ -35,6 +35,8 @@ export interface AuthSuccessResponse {
   refresh_token: string;
   session_id?: string;
   mfa_skipped?: boolean;
+  trusted_device_token?: string;
+  trusted_device?: TrustedDevice;
   user?: UserProfile;
   workspace?: Workspace;
   active_workspace?: Workspace;
@@ -267,6 +269,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
       headers: this.getHeaders(),
+      credentials: "include",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
     return this.handleResponse(res);
@@ -276,6 +279,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify({
         session_id: sessionId || null,
         logout_all_devices: logoutAll,
@@ -316,6 +320,7 @@ class ApiClient {
       const res = await fetch(`${API_BASE}/workspaces`, {
         method: "GET",
         headers: this.getHeaders(token),
+        credentials: "include",
       });
       const data = await this.handleResponse<any>(res);
       const workspaces = Array.isArray(data) ? data : data.workspaces || [];
@@ -333,6 +338,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/workspaces`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify(payload),
     });
     return this.handleResponse(res);
@@ -342,6 +348,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}`, {
       method: "GET",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }
@@ -361,6 +368,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/auth/workspaces/switch`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify({ workspace_id: workspaceId }),
     });
     const data = await this.handleResponse<any>(res);
@@ -383,6 +391,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/audit-logs${query}`, {
       method: "GET",
       headers: this.getHeaders(token, workspaceId),
+      credentials: "include",
     });
     const data = await this.handleResponse<any>(res);
     // Defensive key check: supports both 'audit_logs' and 'logs' or raw array
@@ -409,6 +418,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/tasks${query}`, {
       method: "GET",
       headers: this.getHeaders(token, wsId),
+      credentials: "include",
     });
     const data = await this.handleResponse<any>(res);
     const tasks = Array.isArray(data) ? data : data.tasks || [];
@@ -438,6 +448,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/tasks`, {
       method: "POST",
       headers: this.getHeaders(token, wsId),
+      credentials: "include",
       body: JSON.stringify(body),
     });
     return this.handleResponse(res);
@@ -447,6 +458,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
       method: "PATCH",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify(updates),
     });
     return this.handleResponse(res);
@@ -456,6 +468,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
       method: "DELETE",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }
@@ -476,6 +489,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/members${query}`, {
       method: "GET",
       headers: this.getHeaders(token, workspaceId),
+      credentials: "include",
     });
     const data = await this.handleResponse<any>(res);
     const members = Array.isArray(data) ? data : data.members || [];
@@ -495,6 +509,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/invite`, {
       method: "POST",
       headers: this.getHeaders(token, workspaceId),
+      credentials: "include",
       body: JSON.stringify(payload),
     });
     return this.handleResponse(res);
@@ -511,6 +526,7 @@ class ApiClient {
       {
         method: "PATCH",
         headers: this.getHeaders(token, workspaceId),
+        credentials: "include",
         body: JSON.stringify({ role }),
       }
     );
@@ -527,6 +543,7 @@ class ApiClient {
       {
         method: "DELETE",
         headers: this.getHeaders(token, workspaceId),
+        credentials: "include",
       }
     );
     return this.handleResponse(res);
@@ -549,11 +566,15 @@ class ApiClient {
     expires_at?: string;
   }> {
     try {
-      const res = await fetch(`${API_BASE}/workspaces/invite/verify?token=${encodeURIComponent(token)}`);
+      const res = await fetch(`${API_BASE}/workspaces/invite/verify?token=${encodeURIComponent(token)}`, {
+        credentials: "include",
+      });
       return await this.handleResponse(res);
     } catch {
       // Fallback to legacy endpoint if backend mounts at /team/invite/verify
-      const res = await fetch(`${API_BASE}/team/invite/verify?token=${encodeURIComponent(token)}`);
+      const res = await fetch(`${API_BASE}/team/invite/verify?token=${encodeURIComponent(token)}`, {
+        credentials: "include",
+      });
       return await this.handleResponse(res);
     }
   }
@@ -567,6 +588,7 @@ class ApiClient {
       const res = await fetch(`${API_BASE}/workspaces/invite/accept`, {
         method: "POST",
         headers: this.getHeaders(),
+        credentials: "include",
         body: JSON.stringify(payload),
       });
       return await this.handleResponse<AuthSuccessResponse>(res);
@@ -575,6 +597,7 @@ class ApiClient {
       const res = await fetch(`${API_BASE}/team/invite/accept`, {
         method: "POST",
         headers: this.getHeaders(),
+        credentials: "include",
         body: JSON.stringify(payload),
       });
       return await this.handleResponse<AuthSuccessResponse>(res);
@@ -596,6 +619,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/team/members`, {
       method: "GET",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }
@@ -624,6 +648,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/team/invite`, {
       method: "POST",
       headers: this.getHeaders(token),
+      credentials: "include",
       body: JSON.stringify(payload),
     });
     return this.handleResponse(res);
@@ -648,6 +673,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/team/members/${encodeURIComponent(memberEmail)}`, {
       method: "DELETE",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     return this.handleResponse(res);
   }
@@ -687,6 +713,7 @@ class ApiClient {
     const res = await fetch(`${API_BASE}/audit/logs${query}`, {
       method: "GET",
       headers: this.getHeaders(token),
+      credentials: "include",
     });
     const data = await this.handleResponse<any>(res);
     // Defensive key check: supports both 'logs' and 'audit_logs' or raw array
@@ -700,7 +727,9 @@ class ApiClient {
 
   async getOAuthProviders(): Promise<{ status: string; available_providers: string[] }> {
     try {
-      const res = await fetch(`${API_BASE}/auth/oauth/providers`);
+      const res = await fetch(`${API_BASE}/auth/oauth/providers`, {
+        credentials: "include",
+      });
       return this.handleResponse(res);
     } catch {
       return { status: "SUCCESS", available_providers: ["google", "github"] };
@@ -716,7 +745,9 @@ class ApiClient {
     const url = redirectUri
       ? `${API_BASE}/auth/oauth/${provider}/login?redirect_uri=${encodeURIComponent(redirectUri)}`
       : `${API_BASE}/auth/oauth/${provider}/login`;
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      credentials: "include",
+    });
     return this.handleResponse(res);
   }
 

@@ -46,6 +46,9 @@ function OAuthCallbackContent() {
       .exchangeOAuthCode(provider, code, codeVerifier, redirectUri)
       .then((res: LoginResponse) => {
         if (res.status === "SUCCESS") {
+          if (res.trusted_device_token && typeof window !== "undefined") {
+            localStorage.setItem("trusted_device_token", res.trusted_device_token);
+          }
           loginSuccess(res);
           localStorage.removeItem("oauth_provider");
           localStorage.removeItem("oauth_code_verifier");
@@ -72,6 +75,9 @@ function OAuthCallbackContent() {
     try {
       const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
+        if (res.trusted_device_token && typeof window !== "undefined") {
+          localStorage.setItem("trusted_device_token", res.trusted_device_token);
+        }
         loginSuccess(res);
         localStorage.removeItem("oauth_provider");
         localStorage.removeItem("oauth_code_verifier");

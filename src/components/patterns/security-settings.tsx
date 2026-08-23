@@ -154,11 +154,17 @@ export function SecuritySettings() {
 
   const handleRevokeDevice = async (deviceId: string) => {
     if (!token) return;
+    const targetDevice = trustedDevices.find((d) => d.id === deviceId);
+    const isCurrent = Boolean(targetDevice?.is_current_device || targetDevice?.is_current);
+
     setDeviceRevokingId(deviceId);
     setDeviceActionMsg(null);
 
     try {
       await api.revokeTrustedDevice(token, deviceId);
+      if (isCurrent && typeof window !== "undefined") {
+        localStorage.removeItem("trusted_device_token");
+      }
       setTrustedDevices((prev) => prev.filter((d) => d.id !== deviceId));
       setDeviceActionMsg("Trusted device revoked. MFA verification will be required on its next login.");
       setTimeout(() => setDeviceActionMsg(null), 3500);
@@ -180,6 +186,9 @@ export function SecuritySettings() {
 
     try {
       await api.revokeAllTrustedDevices(token);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("trusted_device_token");
+      }
       setTrustedDevices([]);
       setDeviceActionMsg("All trusted devices have been signed out and revoked.");
       setTimeout(() => setDeviceActionMsg(null), 3500);

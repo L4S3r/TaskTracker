@@ -45,6 +45,15 @@ export function LoginView() {
     try {
       const res = await api.login(identifier, password);
       if (res.status === "SUCCESS") {
+        if (res.mfa_skipped) {
+          console.log(
+            "MFA bypassed via trusted device:",
+            res.trusted_device?.device_label || res.trusted_device?.label
+          );
+        }
+        if (res.trusted_device_token && typeof window !== "undefined") {
+          localStorage.setItem("trusted_device_token", res.trusted_device_token);
+        }
         loginSuccess(res);
         router.push("/");
       } else if (res.status === "MFA_REQUIRED") {
@@ -69,6 +78,9 @@ export function LoginView() {
     try {
       const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
+        if (res.trusted_device_token && typeof window !== "undefined") {
+          localStorage.setItem("trusted_device_token", res.trusted_device_token);
+        }
         loginSuccess(res);
         setMfaChallenge(null);
         router.push("/");
