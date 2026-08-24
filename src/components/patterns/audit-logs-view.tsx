@@ -232,9 +232,9 @@ export function AuditLogsView() {
                 className="h-11 min-h-[44px] rounded-xl border border-input bg-background dark:bg-slate-900/80 pl-3 pr-8 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors appearance-none [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
               >
                 <option value="all">All Severities</option>
-                <option value="INFO">🔵 INFO</option>
-                <option value="WARNING">🟡 WARN / WARNING</option>
-                <option value="CRITICAL">🔴 CRITICAL</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARN / WARNING</option>
+                <option value="CRITICAL">CRITICAL</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-4 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             </div>

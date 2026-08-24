@@ -138,9 +138,9 @@ export function NotificationCenter() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-card dark:bg-card shadow-2xl z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border bg-muted/70">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-foreground">Notifications</h3>
               {unreadCount > 0 && (
@@ -163,10 +163,10 @@ export function NotificationCenter() {
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-border/40">
+          <div className="max-h-[380px] overflow-y-auto divide-y divide-border/60 bg-card">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground mb-3">
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center bg-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground mb-3">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <p className="text-sm font-semibold text-foreground">All caught up!</p>
@@ -181,16 +181,18 @@ export function NotificationCenter() {
                   <div
                     key={notif.id}
                     onClick={() => handleMarkAsRead(notif.id)}
-                    className={`flex items-start gap-3 p-3.5 transition-colors cursor-pointer hover:bg-accent/40 ${
-                      isUnread ? "bg-primary/5" : "opacity-80"
+                    className={`flex items-start gap-3 p-3.5 transition-colors cursor-pointer ${
+                      isUnread
+                        ? "bg-primary/10 hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25 border-l-2 border-primary"
+                        : "bg-card hover:bg-muted/60"
                     }`}
                   >
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-card border border-border/80 shadow-2xs">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted border border-border/80 shadow-2xs">
                       {getNotificationIcon(notif.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <p className={`text-xs font-semibold truncate ${isUnread ? "text-foreground font-bold" : "text-foreground/90"}`}>
+                        <p className={`text-xs truncate ${isUnread ? "text-foreground font-bold" : "text-foreground font-medium"}`}>
                           {notif.title}
                         </p>
                         <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
