@@ -172,7 +172,7 @@ export function MfaModal({
                   autoFocus
                   placeholder="e.g. 9F3A-8B2C"
                   value={backupCode}
-                  onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                  onChange={(e) => setBackupCode(e.target.value.replace(/\s+/g, ""))}
                   className="flex h-12 min-h-[48px] w-full rounded-xl border border-input bg-card pl-10 pr-4 text-center font-mono text-base font-bold tracking-widest text-foreground placeholder:text-muted-foreground placeholder:tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary shadow-xs"
                 />
               </div>
@@ -189,7 +189,7 @@ export function MfaModal({
               </label>
 
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Enter one of your single-use recovery backup codes generated during 2FA activation.
+                Enter one of your single-use recovery backup codes generated during 2FA activation. Codes are case-sensitive — enter exactly as shown.
               </p>
             </div>
           )}
