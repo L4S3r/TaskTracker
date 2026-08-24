@@ -61,6 +61,12 @@ class ApiClient {
     return this.activeWorkspaceId;
   }
 
+  private getCsrfToken(): string | null {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
   private getHeaders(token?: string | null, workspaceId?: string | null): HeadersInit {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -71,6 +77,10 @@ class ApiClient {
     const wsId = workspaceId || this.activeWorkspaceId;
     if (wsId) {
       headers["X-Workspace-Id"] = wsId;
+    }
+    const csrf = this.getCsrfToken();
+    if (csrf) {
+      headers["X-CSRF-Token"] = csrf;
     }
     return headers;
   }
@@ -137,6 +147,35 @@ class ApiClient {
       body: JSON.stringify({ username, email, password }),
     });
     return this.handleResponse<{ status: string; user: UserProfile }>(res);
+  }
+
+  async forgotPassword(email: string): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ email }),
+    });
+    return this.handleResponse<{ status: string; message: string }>(res);
+  }
+
+  async verifyResetToken(token: string): Promise<{ status: string; valid: boolean; username?: string; masked_email?: string }> {
+    const res = await fetch(`${API_BASE}/auth/verify-reset-token?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: this.getHeaders(),
+      credentials: "include",
+    });
+    return this.handleResponse<{ status: string; valid: boolean; username?: string; masked_email?: string }>(res);
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+    return this.handleResponse<{ status: string; message: string }>(res);
   }
 
   async completeMFA(
@@ -225,7 +264,7 @@ class ApiClient {
     return this.handleResponse<{ status: string; message?: string }>(res);
   }
 
-  async refreshTokens(refreshToken: string): Promise<{
+  async refreshTokens(refreshToken?: string | null): Promise<{
     status: "SUCCESS";
     access_token: string;
     refresh_token: string;
@@ -235,12 +274,12 @@ class ApiClient {
       method: "POST",
       headers: this.getHeaders(),
       credentials: "include",
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      body: JSON.stringify({ refresh_token: refreshToken || undefined }),
     });
     return this.handleResponse(res);
   }
 
-  async logout(token: string, sessionId?: string, logoutAll: boolean = false): Promise<{ status: string }> {
+  async logout(token?: string | null, sessionId?: string, logoutAll: boolean = false): Promise<{ status: string }> {
     const res = await fetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       headers: this.getHeaders(token),
@@ -253,7 +292,7 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-  async getMe(token: string): Promise<{
+  async getMe(token?: string | null): Promise<{
     status: string;
     user: UserProfile;
     claims?: any;
@@ -280,7 +319,7 @@ class ApiClient {
   // Multi-Tenancy & Workspace Endpoints
   // =========================================================================
 
-  async getWorkspaces(token: string): Promise<{ status: string; count?: number; workspaces: Workspace[] }> {
+  async getWorkspaces(token?: string | null): Promise<{ status: string; count?: number; workspaces: Workspace[] }> {
     try {
       const res = await fetch(`${API_BASE}/workspaces`, {
         method: "GET",
@@ -297,7 +336,7 @@ class ApiClient {
   }
 
   async createWorkspace(
-    token: string,
+    token: string | null | undefined,
     payload: { name: string; slug?: string; description?: string }
   ): Promise<{ status: string; workspace: Workspace; message?: string }> {
     const res = await fetch(`${API_BASE}/workspaces`, {
@@ -309,7 +348,7 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
-  async getWorkspace(token: string, workspaceId: string): Promise<{ status: string; workspace: Workspace }> {
+  async getWorkspace(token: string | null | undefined, workspaceId: string): Promise<{ status: string; workspace: Workspace }> {
     const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}`, {
       method: "GET",
       headers: this.getHeaders(token),
@@ -319,7 +358,7 @@ class ApiClient {
   }
 
   async switchWorkspace(
-    token: string,
+    token: string | null | undefined,
     workspaceId: string
   ): Promise<{
     status: string;

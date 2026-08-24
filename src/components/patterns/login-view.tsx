@@ -189,25 +189,37 @@ export function LoginView() {
               onChange={(e) => setIdentifier(e.target.value)}
             />
 
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              required
-              placeholder="Enter your account password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              endIcon={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
-                  title={showPassword ? "Hide password" : "Show password"}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-medium text-primary hover:underline"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
-            />
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                type={showPassword ? "text" : "password"}
+                required
+                placeholder="Enter your account password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                endIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg"
+                    title={showPassword ? "Hide password" : "Show password"}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
+              />
+            </div>
 
             <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading}>
               Sign In

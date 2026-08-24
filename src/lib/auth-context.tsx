@@ -155,35 +155,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("active_workspace");
       localStorage.removeItem("workspaces_list");
     }
-    if (redirectToLogin && pathname && !["/login", "/register", "/invite/accept", "/auth/callback"].includes(pathname)) {
+    if (redirectToLogin && pathname && !["/login", "/register", "/forgot-password", "/reset-password", "/invite/accept", "/auth/callback"].includes(pathname)) {
       router.push("/login?expired=true");
     }
   }, [pathname, router, setActiveWorkspace]);
 
   const fetchWorkspaces = useCallback(async (): Promise<Workspace[]> => {
-    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
-    if (!currentToken) return [];
     try {
-      const res = await api.getWorkspaces(currentToken);
+      const res = await api.getWorkspaces();
       const list = res.workspaces || [];
       setWorkspaces(list);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("workspaces_list", JSON.stringify(list));
-      }
 
       // If no active workspace or active workspace no longer in list, set to first
       setActiveWorkspaceState((prev) => {
         if (!prev && list.length > 0) {
           const first = list[0];
           api.setActiveWorkspaceId(first.id);
-          localStorage.setItem("active_workspace", JSON.stringify(first));
+          if (typeof window !== "undefined") {
+            localStorage.setItem("active_workspace", JSON.stringify(first));
+          }
           return first;
         }
         if (prev) {
           const updated = list.find((w) => w.id === prev.id);
           if (updated) {
             api.setActiveWorkspaceId(updated.id);
-            localStorage.setItem("active_workspace", JSON.stringify(updated));
+            if (typeof window !== "undefined") {
+              localStorage.setItem("active_workspace", JSON.stringify(updated));
+            }
             return updated;
           }
         }
@@ -194,27 +193,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return [];
     }
-  }, [token]);
+  }, []);
 
   const switchWorkspace = useCallback(async (workspaceId: string) => {
-    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
-    if (!currentToken) return;
-
     setPermissionAlert(null);
     try {
-      const res = await api.switchWorkspace(currentToken, workspaceId);
+      const res = await api.switchWorkspace(null, workspaceId);
       if (res.access_token) {
         setToken(res.access_token);
-        localStorage.setItem("auth_token", res.access_token);
-      }
-      if (res.refresh_token) {
-        setRefreshToken(res.refresh_token);
-        localStorage.setItem("refresh_token", res.refresh_token);
       }
       if (res.user) {
         const cleanUser = normalizeUser(res.user);
         setUser(cleanUser);
-        localStorage.setItem("auth_user", JSON.stringify(cleanUser));
       }
 
       const target =
@@ -233,13 +223,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       throw err;
     }
-  }, [token, workspaces, setActiveWorkspace, fetchWorkspaces]);
+  }, [workspaces, setActiveWorkspace, fetchWorkspaces]);
 
   const createWorkspace = useCallback(async (data: { name: string; slug?: string; description?: string }): Promise<Workspace> => {
-    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("auth_token") : null);
-    if (!currentToken) throw new Error("Authentication required to create a workspace");
-
-    const res = await api.createWorkspace(currentToken, data);
+    const res = await api.createWorkspace(null, data);
     const newWs = res.workspace;
 
     await fetchWorkspaces();
@@ -247,32 +234,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await switchWorkspace(newWs.id);
     }
     return newWs;
-  }, [token, fetchWorkspaces, switchWorkspace]);
+  }, [fetchWorkspaces, switchWorkspace]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     if (isRefreshingRef.current) return false;
-    const storedRefresh = refreshToken || (typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null);
-    if (!storedRefresh) {
-      clearAuthSession(true);
-      return false;
-    }
-
     isRefreshingRef.current = true;
     try {
-      const refreshed = await api.refreshTokens(storedRefresh);
-      setToken(refreshed.access_token);
-      setRefreshToken(refreshed.refresh_token);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("auth_token", refreshed.access_token);
-        localStorage.setItem("refresh_token", refreshed.refresh_token);
+      const refreshed = await api.refreshTokens();
+      if (refreshed.access_token) {
+        setToken(refreshed.access_token);
+      }
+      if (refreshed.refresh_token) {
+        setRefreshToken(refreshed.refresh_token);
       }
 
       try {
-        const me = await api.getMe(refreshed.access_token);
-        const cleanUser = normalizeUser(me.user);
-        setUser(cleanUser);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("auth_user", JSON.stringify(cleanUser));
+        const me = await api.getMe();
+        if (me.user) {
+          const cleanUser = normalizeUser(me.user);
+          setUser(cleanUser);
         }
         if (me.active_workspace) {
           setActiveWorkspace(me.active_workspace);
@@ -291,59 +271,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [refreshToken, clearAuthSession, setActiveWorkspace]);
+  }, [clearAuthSession, setActiveWorkspace]);
 
-  // Restore session from localStorage on initial load
+  // Initial load: Hydrate authentication session via httpOnly cookie
   useEffect(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    const savedRefresh = localStorage.getItem("refresh_token");
-    const savedUser = localStorage.getItem("auth_user");
-    const savedWorkspace = localStorage.getItem("active_workspace");
-    const savedWorkspacesList = localStorage.getItem("workspaces_list");
+    let isMounted = true;
 
-    if (savedToken && savedUser) {
+    async function initSession() {
       try {
-        const parsed = JSON.parse(savedUser);
-        setToken(savedToken);
-        setRefreshToken(savedRefresh);
-        setUser(normalizeUser(parsed));
+        const me = await api.getMe();
+        if (!isMounted) return;
 
-        if (savedWorkspace) {
-          try {
-            const parsedWs = JSON.parse(savedWorkspace);
-            setActiveWorkspaceState(parsedWs);
-            api.setActiveWorkspaceId(parsedWs.id);
-          } catch {}
-        }
+        if (me.user) {
+          const cleanUser = normalizeUser(me.user);
+          setUser(cleanUser);
+          setToken("cookie_session");
 
-        if (savedWorkspacesList) {
-          try {
-            setWorkspaces(JSON.parse(savedWorkspacesList));
-          } catch {}
-        }
+          // Restore or select active workspace
+          const savedWorkspace = typeof window !== "undefined" ? localStorage.getItem("active_workspace") : null;
+          if (savedWorkspace) {
+            try {
+              const parsedWs = JSON.parse(savedWorkspace);
+              setActiveWorkspaceState(parsedWs);
+              api.setActiveWorkspaceId(parsedWs.id);
+            } catch {}
+          } else if (me.active_workspace) {
+            setActiveWorkspace(me.active_workspace);
+          }
 
-        if (isTokenExpired(savedToken)) {
-          attemptTokenRefresh();
-        } else {
-          api.getWorkspaces(savedToken).then((res) => {
-            if (res.workspaces && res.workspaces.length > 0) {
-              setWorkspaces(res.workspaces);
-              localStorage.setItem("workspaces_list", JSON.stringify(res.workspaces));
-              if (!savedWorkspace) {
-                const first = res.workspaces[0];
-                setActiveWorkspaceState(first);
-                api.setActiveWorkspaceId(first.id);
-                localStorage.setItem("active_workspace", JSON.stringify(first));
+          if (me.workspaces && me.workspaces.length > 0) {
+            setWorkspaces(me.workspaces);
+          } else {
+            api.getWorkspaces().then((res) => {
+              if (isMounted && res.workspaces) {
+                setWorkspaces(res.workspaces);
               }
-            }
-          }).catch(() => {});
+            }).catch(() => {});
+          }
         }
       } catch {
-        clearAuthSession(false);
+        // Attempt silent refresh via refresh_token cookie
+        try {
+          const refreshed = await api.refreshTokens();
+          if (refreshed.access_token && isMounted) {
+            setToken(refreshed.access_token);
+            const me = await api.getMe();
+            if (me.user && isMounted) {
+              const cleanUser = normalizeUser(me.user);
+              setUser(cleanUser);
+              if (me.active_workspace) setActiveWorkspace(me.active_workspace);
+              if (me.workspaces) setWorkspaces(me.workspaces);
+            }
+          }
+        } catch {
+          if (isMounted) {
+            clearAuthSession(false);
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
-    setIsLoading(false);
-  }, [attemptTokenRefresh, clearAuthSession]);
+
+    initSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearAuthSession, setActiveWorkspace]);
 
   // Listen for unauthorized 401 & forbidden 403 events across the app
   useEffect(() => {
@@ -368,18 +365,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [attemptTokenRefresh]);
 
-  // Proactive token expiration heartbeat (every 45s) & visibilitychange
+  // Periodic silent token refresh (every 10 minutes) & upon tab visibility return
   useEffect(() => {
-    const checkExpiry = () => {
-      if (token && isTokenExpired(token, 60)) {
+    const triggerRefresh = () => {
+      if (user) {
         attemptTokenRefresh();
       }
     };
 
-    const interval = setInterval(checkExpiry, 45000);
+    // Access token TTL is 15m; silent refresh at 10m keeps session seamlessly uninterrupted
+    const interval = setInterval(triggerRefresh, 10 * 60 * 1000);
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        checkExpiry();
+      if (document.visibilityState === "visible" && user) {
+        triggerRefresh();
       }
     };
 
@@ -388,18 +386,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [token, attemptTokenRefresh]);
+  }, [user, attemptTokenRefresh]);
 
   const loginSuccess = (authData: AuthSuccessResponse) => {
-    setToken(authData.access_token);
-    setRefreshToken(authData.refresh_token);
-    localStorage.setItem("auth_token", authData.access_token);
-    localStorage.setItem("refresh_token", authData.refresh_token);
+    setToken(authData.access_token || "cookie_session");
+    if (authData.refresh_token) {
+      setRefreshToken(authData.refresh_token);
+    }
 
     if (authData.user) {
       const cleanUser = normalizeUser(authData.user);
       setUser(cleanUser);
-      localStorage.setItem("auth_user", JSON.stringify(cleanUser));
     }
 
     if (authData.active_workspace || authData.workspace) {
@@ -409,15 +406,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (authData.workspaces && Array.isArray(authData.workspaces)) {
       setWorkspaces(authData.workspaces);
-      localStorage.setItem("workspaces_list", JSON.stringify(authData.workspaces));
       if (!authData.active_workspace && !authData.workspace && authData.workspaces.length > 0) {
         setActiveWorkspace(authData.workspaces[0]);
       }
     } else {
-      api.getWorkspaces(authData.access_token).then((res) => {
+      api.getWorkspaces().then((res) => {
         if (res.workspaces && res.workspaces.length > 0) {
           setWorkspaces(res.workspaces);
-          localStorage.setItem("workspaces_list", JSON.stringify(res.workspaces));
           if (!activeWorkspace) {
             setActiveWorkspace(res.workspaces[0]);
           }
@@ -426,42 +421,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Always synchronize latest user profile data (including OAuth avatar) from GET /auth/me
-    api.getMe(authData.access_token).then((me) => {
+    api.getMe().then((me) => {
       if (me.user) {
         const freshUser = normalizeUser(me.user);
         setUser(freshUser);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("auth_user", JSON.stringify(freshUser));
-        }
       }
       if (me.active_workspace) {
         setActiveWorkspace(me.active_workspace);
       }
       if (me.workspaces && me.workspaces.length > 0) {
         setWorkspaces(me.workspaces);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("workspaces_list", JSON.stringify(me.workspaces));
-        }
       }
     }).catch(() => {});
   };
 
   const logout = async (logoutAll: boolean = false) => {
-    if (token) {
-      try {
-        await api.logout(token, undefined, logoutAll);
-      } catch {}
-    }
+    try {
+      await api.logout(token, undefined, logoutAll);
+    } catch {}
     clearAuthSession(true);
   };
 
   const refreshProfile = async () => {
-    if (!token) return;
     try {
-      const res = await api.getMe(token);
+      const res = await api.getMe();
       const cleanUser = normalizeUser(res.user);
       setUser(cleanUser);
-      localStorage.setItem("auth_user", JSON.stringify(cleanUser));
       if (res.active_workspace) {
         setActiveWorkspace(res.active_workspace);
       }
