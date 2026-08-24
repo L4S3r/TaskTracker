@@ -4,7 +4,7 @@
  * Interfaces with the Auth N&Z Security Gateway & Multi-Tenant Backend.
  */
 
-import { Task, Workspace, WorkspaceMember, AuditLog, TrustedDevice } from "./tasks-store";
+import { Task, Workspace, WorkspaceMember, AuditLog, TrustedDevice, InAppNotification } from "./tasks-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
@@ -772,6 +772,47 @@ class ApiClient {
       }),
     });
     return this.handleResponse<AuthSuccessResponse>(res);
+  }
+
+  // ===========================================================================
+  // In-App Notifications (Phase 4.2)
+  // ===========================================================================
+  async getNotifications(
+    token?: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<{ status: string; unread_count: number; notifications: InAppNotification[] }> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const res = await fetch(`${API_BASE}/notifications${qs}`, {
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse<{ status: string; unread_count: number; notifications: InAppNotification[] }>(res);
+  }
+
+  async markNotificationRead(
+    token: string | undefined,
+    notificationId: string
+  ): Promise<{ status: string; id: string; is_read: number }> {
+    const res = await fetch(`${API_BASE}/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse<{ status: string; id: string; is_read: number }>(res);
+  }
+
+  async markAllNotificationsRead(
+    token?: string
+  ): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/notifications/read-all`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse<{ status: string; message: string }>(res);
   }
 }
 

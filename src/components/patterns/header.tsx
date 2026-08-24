@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { NotificationCenter } from "@/components/patterns/notification-center";
 
 export function Header() {
   const {
@@ -251,6 +252,7 @@ export function Header() {
             <ThemeToggle />
             {user ? (
               <>
+                <NotificationCenter />
                 {/* Profile Dropdown Container */}
                 <div className="relative" ref={profileMenuRef}>
                   <button

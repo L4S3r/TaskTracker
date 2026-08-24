@@ -97,3 +97,15 @@ export interface TrustedDevice {
   expires_at?: string;
 }
 
+export interface InAppNotification {
+  id: string;
+  user_id: string;
+  workspace_id?: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  is_read: number | boolean;
+  created_at: string;
+}
+

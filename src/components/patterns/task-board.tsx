@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { Task, TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
+import { useWorkspaceSocket } from "@/lib/use-workspace-socket";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -87,6 +88,8 @@ export function TaskBoard() {
 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
+  const [justArrivedTaskId, setJustArrivedTaskId] = useState<string | null>(null);
 
   // RBAC Permission resolution
   const canCreate = !isViewer;
@@ -134,14 +137,48 @@ export function TaskBoard() {
     fetchTasksAndMembers();
   }, [activeWorkspace?.id, fetchTasksAndMembers]);
 
+  // Real-Time WebSocket Channel for Live Board Synchronization (Phase 4.1)
+  const { isConnected: isWsConnected } = useWorkspaceSocket(activeWorkspace?.id, {
+    onTaskCreated: (newTask) => {
+      setTasks((prev) => {
+        if (prev.some((t) => t.id === newTask.id)) return prev;
+        return [newTask, ...prev];
+      });
+    },
+    onTaskUpdated: (updatedTask) => {
+      setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t)));
+      setSelectedDetailTask((prev) => (prev && prev.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
+    },
+    onTaskDeleted: (deletedTaskId) => {
+      setTasks((prev) => prev.filter((t) => t.id !== deletedTaskId));
+      setSelectedDetailTask((prev) => (prev && prev.id === deletedTaskId ? null : prev));
+    },
+  });
+
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    if (!token || !canMove) return;
-    try {
+    if (!token || !canMove || transitioningTaskId) return;
+
+    // 1. Trigger slide-out animation on the source column card
+    setTransitioningTaskId(taskId);
+
+    // 2. Commit status move after exit animation duration
+    setTimeout(async () => {
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
-      await api.updateTask(token, taskId, { status: newStatus });
-    } catch {
-      fetchTasksAndMembers();
-    }
+      setTransitioningTaskId(null);
+      setJustArrivedTaskId(taskId);
+
+      // 3. Reset arrival highlight state after landing
+      setTimeout(() => {
+        setJustArrivedTaskId((curr) => (curr === taskId ? null : curr));
+      }, 350);
+
+      // 4. Persist to API
+      try {
+        await api.updateTask(token, taskId, { status: newStatus });
+      } catch {
+        fetchTasksAndMembers();
+      }
+    }, 180);
   };
 
   const handleConfirmDeleteTask = async () => {
@@ -261,6 +298,16 @@ export function TaskBoard() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {isWsConnected && (
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Live Sync</span>
+            </div>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -481,11 +528,18 @@ export function TaskBoard() {
                           ]
                         : [];
 
+                    const isTransitioning = transitioningTaskId === task.id;
+                    const isJustArrived = justArrivedTaskId === task.id;
+
                     return (
                       <Card
                         key={task.id}
                         onClick={() => setSelectedDetailTask(task)}
-                        className="border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group"
+                        className={`border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group ${
+                          isTransitioning ? "animate-slide-out-right pointer-events-none opacity-0" : ""
+                        } ${
+                          isJustArrived ? "animate-slide-in-left ring-2 ring-primary/40 shadow-lg" : ""
+                        } motion-reduce:animate-none motion-reduce:transform-none`}
                       >
                         <CardHeader className="p-3.5 pb-2 space-y-2">
                           <div className="flex items-start justify-between gap-2">
@@ -579,12 +633,13 @@ export function TaskBoard() {
                             <div className="flex items-center gap-1">
                               {canMove && col.id !== "done" && (
                                 <button
+                                  disabled={isTransitioning}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     const nextStatus: TaskStatus = col.id === "todo" ? "in_progress" : "done";
                                     handleStatusChange(task.id, nextStatus);
                                   }}
-                                  className="group/btn flex items-center gap-1.5 rounded-lg bg-secondary/80 hover:bg-primary hover:text-primary-foreground min-h-[44px] px-3 py-2 text-xs font-semibold text-secondary-foreground transition-all cursor-pointer"
+                                  className="group/btn flex items-center gap-1.5 rounded-lg bg-secondary/80 hover:bg-primary hover:text-primary-foreground min-h-[44px] px-3 py-2 text-xs font-semibold text-secondary-foreground transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Move to next stage"
                                   aria-label={`Advance task ${task.title} to next column`}
                                 >
