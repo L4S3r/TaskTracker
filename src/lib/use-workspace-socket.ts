@@ -47,7 +47,7 @@ export function useWorkspaceSocket(
     const apiBase = process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8000";
     let wsUrl = apiBase.replace(/^http:\/\//i, "ws://").replace(/^https:\/\//i, "wss://");
     wsUrl = `${wsUrl.replace(/\/+$/, "")}/ws/workspaces/${encodeURIComponent(workspaceId)}`;
-    if (token) {
+    if (token && token !== "cookie_session" && token.includes(".")) {
       wsUrl += `?token=${encodeURIComponent(token)}`;
     }
 

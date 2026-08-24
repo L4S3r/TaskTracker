@@ -274,7 +274,7 @@ class ApiClient {
       method: "POST",
       headers: this.getHeaders(),
       credentials: "include",
-      body: JSON.stringify({ refresh_token: refreshToken || undefined }),
+      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     });
     return this.handleResponse(res);
   }
