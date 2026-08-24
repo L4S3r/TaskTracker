@@ -14,10 +14,12 @@ export interface Workspace {
   name: string;
   slug: string;
   description?: string;
-  member_role?: WorkspaceRole;
-  role?: WorkspaceRole;
+  role?: "superadmin" | "admin" | "developer" | "editor" | "viewer" | string;
+  member_role?: "superadmin" | "admin" | "developer" | "editor" | "viewer" | string;
+  member_status?: string;
   member_count?: number;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Task {

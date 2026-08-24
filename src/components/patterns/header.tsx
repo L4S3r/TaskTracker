@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { CreateWorkspaceModal } from "@/components/patterns/create-workspace-modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Workspace } from "@/lib/tasks-store";
 import {
   CheckSquare,
   Users,
@@ -22,13 +24,16 @@ import {
   Activity,
   AlertTriangle,
   Search,
+  Trash2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { NotificationCenter } from "@/components/patterns/notification-center";
 import { useCommandPalette } from "@/lib/command-palette-context";
+import { useToast } from "@/lib/toast-context";
 
 export function Header() {
   const { open: openCommandPalette } = useCommandPalette();
+  const { toast } = useToast();
   const {
     user,
     activeWorkspace,
@@ -37,6 +42,7 @@ export function Header() {
     isAdmin,
     isSuperAdmin,
     switchWorkspace,
+    deleteWorkspace,
     logout,
     permissionAlert,
     clearPermissionAlert,
@@ -48,6 +54,10 @@ export function Header() {
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
   const [isSwitchingWs, setIsSwitchingWs] = useState(false);
+
+  // Delete Workspace Dialog State
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
+  const [isDeletingWs, setIsDeletingWs] = useState(false);
 
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
@@ -94,6 +104,25 @@ export function Header() {
     } finally {
       setIsSwitchingWs(false);
     }
+  };
+
+  const handleDeleteWorkspaceConfirm = async () => {
+    if (!workspaceToDelete) return;
+    setIsDeletingWs(true);
+    try {
+      await deleteWorkspace(workspaceToDelete.id);
+      toast.success("Workspace Deleted", `"${workspaceToDelete.name}" was permanently removed.`);
+      setWorkspaceToDelete(null);
+    } catch (err: any) {
+      toast.error("Deletion Failed", err.message || "Failed to delete workspace.");
+    } finally {
+      setIsDeletingWs(false);
+    }
+  };
+
+  const getDisplayRole = (workspace: Workspace) => {
+    if (isSuperAdmin || user?.roles?.includes("superadmin")) return "superadmin";
+    return workspace.member_role || workspace.role || "viewer";
   };
 
   const roleLabelMap: Record<string, string> = {
@@ -166,20 +195,23 @@ export function Header() {
                     <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1 pr-0.5">
                       {workspaces.map((ws) => {
                         const isSelected = activeWorkspace?.id === ws.id;
-                        const wsRole = (ws.member_role || ws.role || "viewer").toLowerCase();
+                        const wsRole = getDisplayRole(ws).toLowerCase();
+                        const canDeleteWs = isSuperAdmin || wsRole === "superadmin" || wsRole === "admin";
                         return (
-                          <button
+                          <div
                             key={ws.id}
-                            type="button"
-                            disabled={isSwitchingWs}
-                            onClick={() => handleSelectWorkspace(ws.id)}
-                            className={`flex w-full items-center justify-between p-2.5 rounded-lg text-xs transition-all cursor-pointer min-h-[44px] ${
+                            className={`flex w-full items-center justify-between p-2.5 rounded-lg text-xs transition-all ${
                               isSelected
                                 ? "bg-primary/10 text-primary font-semibold border border-primary/30"
                                 : "hover:bg-muted/70 text-foreground/80 hover:text-foreground"
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 text-left truncate">
+                            <button
+                              type="button"
+                              disabled={isSwitchingWs}
+                              onClick={() => handleSelectWorkspace(ws.id)}
+                              className="flex items-center gap-2.5 text-left truncate flex-1 cursor-pointer min-h-[36px]"
+                            >
                               <Building2 className={`h-4 w-4 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
                               <div className="truncate">
                                 <p className="font-semibold text-foreground truncate leading-tight">{ws.name}</p>
@@ -187,14 +219,30 @@ export function Header() {
                                   {ws.slug || "workspace"} {ws.member_count ? `• ${ws.member_count} members` : ""}
                                 </p>
                               </div>
-                            </div>
+                            </button>
+
                             <div className="flex items-center gap-1.5 shrink-0 ml-2">
                               <Badge variant={wsRole as any} className="text-[9px] px-1.5 py-0 uppercase">
                                 {roleLabelMap[wsRole] || wsRole.toUpperCase()}
                               </Badge>
+                              {canDeleteWs && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWorkspaceToDelete(ws);
+                                    setShowWorkspaceMenu(false);
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                                  title={`Delete workspace ${ws.name}`}
+                                  aria-label={`Delete workspace ${ws.name}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               {isSelected && <Check className="h-4 w-4 text-primary" />}
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
 
@@ -472,6 +520,19 @@ export function Header() {
 
       {/* Create Workspace Modal */}
       <CreateWorkspaceModal isOpen={isCreateWsOpen} onClose={() => setIsCreateWsOpen(false)} />
+
+      {/* Delete Workspace Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(workspaceToDelete)}
+        onClose={() => setWorkspaceToDelete(null)}
+        onConfirm={handleDeleteWorkspaceConfirm}
+        isLoading={isDeletingWs}
+        title="Delete Workspace"
+        description={`Are you sure you want to permanently delete "${workspaceToDelete?.name}"? All sprint deliverables and collaborator accesses in this workspace will be destroyed. This action cannot be undone.`}
+        confirmText="Delete Workspace"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </>
   );
 }

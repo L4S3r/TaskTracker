@@ -32,13 +32,17 @@ import {
 } from "lucide-react";
 
 export function TeamManager() {
-  const { token, user, activeWorkspace, workspaces, isAdmin, isSuperAdmin } = useAuth();
+  const { token, user, activeWorkspace, workspaces, isAdmin, isSuperAdmin, deleteWorkspace } = useAuth();
   const { toast } = useToast();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Workspace Deletion State
+  const [isDeleteWsOpen, setIsDeleteWsOpen] = useState(false);
+  const [isDeletingWs, setIsDeletingWs] = useState(false);
 
   // Invite Form State
   const [inviteEmail, setInviteEmail] = useState("");
@@ -199,6 +203,20 @@ export function TeamManager() {
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!activeWorkspace) return;
+    setIsDeletingWs(true);
+    try {
+      await deleteWorkspace(activeWorkspace.id);
+      toast.success("Workspace Deleted", `"${activeWorkspace.name}" was permanently removed.`);
+      setIsDeleteWsOpen(false);
+    } catch (err: any) {
+      toast.error("Deletion Failed", err.message || "Failed to delete workspace.");
+    } finally {
+      setIsDeletingWs(false);
+    }
+  };
+
   const activeCount = members.filter((m) => m.status === "active").length;
   const invitedCount = members.filter((m) => m.status === "invited" || m.status === "pending").length;
 
@@ -280,6 +298,19 @@ export function TeamManager() {
             >
               <UserPlus className="h-4 w-4" />
               <span>Invite Colleague</span>
+            </Button>
+          )}
+
+          {isAdmin && activeWorkspace && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeleteWsOpen(true)}
+              className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60"
+              title="Delete workspace"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Delete Workspace</span>
             </Button>
           )}
         </div>
@@ -405,8 +436,8 @@ export function TeamManager() {
                           {m.invited_at || m.invitedAt
                             ? `Invited ${new Date(m.invited_at || m.invitedAt!).toLocaleDateString()}`
                             : m.joined_at
-                            ? `Joined ${new Date(m.joined_at).toLocaleDateString()}`
-                            : "Active Member"}
+                              ? `Joined ${new Date(m.joined_at).toLocaleDateString()}`
+                              : "Active Member"}
                         </td>
 
                         {/* Actions (Admins Only) */}
@@ -507,7 +538,7 @@ export function TeamManager() {
             label="Email Address"
             type="email"
             required
-            placeholder="colleague@l4s3r.site"
+            placeholder="example@domain.com"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
           />
@@ -605,6 +636,19 @@ export function TeamManager() {
         title="Remove Member from Workspace"
         description={`Are you sure you want to revoke ${memberToDelete?.name || memberToDelete?.email}'s access to "${activeWorkspace?.name || "this workspace"}"?`}
         confirmText="Remove Member"
+        cancelText="Cancel"
+        variant="destructive"
+      />
+
+      {/* Workspace Deletion Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteWsOpen}
+        onClose={() => setIsDeleteWsOpen(false)}
+        onConfirm={handleDeleteWorkspace}
+        isLoading={isDeletingWs}
+        title="Delete Workspace"
+        description={`Are you sure you want to permanently delete "${activeWorkspace?.name}"? All sprint deliverables and collaborator clearances in this workspace will be removed. This action cannot be undone.`}
+        confirmText="Delete Workspace"
         cancelText="Cancel"
         variant="destructive"
       />

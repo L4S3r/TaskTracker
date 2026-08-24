@@ -105,6 +105,7 @@ interface AuthContextType {
   setPermissionAlert: (alert: string | null) => void;
   switchWorkspace: (workspaceId: string) => Promise<void>;
   createWorkspace: (data: { name: string; slug?: string; description?: string }) => Promise<Workspace>;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
   fetchWorkspaces: () => Promise<Workspace[]>;
   setActiveWorkspace: (ws: Workspace | null) => void;
   loginSuccess: (authData: AuthSuccessResponse) => void;
@@ -207,9 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(cleanUser);
       }
 
+      const activeWs = res.active_workspace || (res as any).data?.active_workspace || res.workspace || (res as any).data?.workspace;
       const target =
-        res.active_workspace ||
-        res.workspace ||
+        activeWs ||
         workspaces.find((w) => w.id === workspaceId) ||
         ({ id: workspaceId, name: "Workspace", slug: workspaceId, role: "admin" } as Workspace);
 
@@ -235,6 +236,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return newWs;
   }, [fetchWorkspaces, switchWorkspace]);
+
+  const deleteWorkspace = useCallback(async (workspaceId: string) => {
+    await api.deleteWorkspace(token, workspaceId);
+    setWorkspaces((prev) => prev.filter((w) => w.id !== workspaceId));
+    if (activeWorkspace?.id === workspaceId) {
+      const remaining = workspaces.filter((w) => w.id !== workspaceId);
+      if (remaining.length > 0) {
+        await switchWorkspace(remaining[0].id);
+      } else {
+        setActiveWorkspace(null);
+      }
+    } else {
+      await fetchWorkspaces();
+    }
+  }, [token, activeWorkspace?.id, workspaces, switchWorkspace, setActiveWorkspace, fetchWorkspaces]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     if (isRefreshingRef.current) return false;
@@ -509,6 +525,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPermissionAlert,
         switchWorkspace,
         createWorkspace,
+        deleteWorkspace,
         fetchWorkspaces,
         setActiveWorkspace,
         loginSuccess,

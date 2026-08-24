@@ -357,6 +357,15 @@ class ApiClient {
     return this.handleResponse(res);
   }
 
+  async deleteWorkspace(token: string | null | undefined, workspaceId: string): Promise<{ status: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse(res);
+  }
+
   async switchWorkspace(
     token: string | null | undefined,
     workspaceId: string
