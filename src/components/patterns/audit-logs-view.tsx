@@ -163,11 +163,10 @@ export function AuditLogsView() {
               <button
                 type="button"
                 onClick={() => setScope("workspace")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  scope === "workspace"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${scope === "workspace"
                     ? "bg-card text-foreground shadow-xs border border-border/60"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
                 <span>Workspace Scope</span>
@@ -175,11 +174,10 @@ export function AuditLogsView() {
               <button
                 type="button"
                 onClick={() => setScope("global")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                  scope === "global"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${scope === "global"
                     ? "bg-card text-foreground shadow-xs border border-border/60"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Globe2 className="h-3.5 w-3.5 text-primary" />
                 <span>Organization Console</span>
@@ -254,11 +252,15 @@ export function AuditLogsView() {
                 className="h-11 min-h-[44px] rounded-xl border border-input bg-background dark:bg-slate-900/80 pl-3 pr-8 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary cursor-pointer transition-colors appearance-none [&>option]:bg-card dark:[&>option]:bg-slate-900 [&>option]:text-foreground"
               >
                 <option value="all">All Event Types</option>
+                <option value="MFA_SKIPPED_TRUSTED_DEVICE"> MFA Bypass (Trusted Device)</option>
+                <option value="ACCOUNT_LOCKOUT"> Account Lockouts</option>
+                <option value="REFRESH_TOKEN_REUSE_DETECTED"> Token Reuse / Theft</option>
+                <option value="PASSWORD_RESET"> Password Resets</option>
+                <option value="AUTH">Authentication Events</option>
                 <option value="WORKSPACE">Workspace Events</option>
                 <option value="MEMBER">Member Events</option>
                 <option value="TASK">Task Deliverable Events</option>
                 <option value="ACCESS">Access & Auth Decisions</option>
-                <option value="AUTH">Authentication Events</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-4 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             </div>

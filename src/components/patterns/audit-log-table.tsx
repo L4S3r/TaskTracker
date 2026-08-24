@@ -62,6 +62,34 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({ logs, onInspectJso
     }
   };
 
+  const formatEventType = (eventType: string) => {
+    switch (eventType) {
+      case "MFA_SKIPPED_TRUSTED_DEVICE":
+        return (
+          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            MFA_SKIPPED_TRUSTED_DEVICE
+          </span>
+        );
+      case "ACCOUNT_LOCKOUT":
+        return (
+          <span className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+            ACCOUNT_LOCKOUT
+          </span>
+        );
+      case "REFRESH_TOKEN_REUSE_DETECTED":
+        return (
+          <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+            REFRESH_TOKEN_REUSE_DETECTED
+          </span>
+        );
+      default:
+        return <span className="font-semibold text-foreground">{eventType}</span>;
+    }
+  };
+
   if (!logs || logs.length === 0) {
     return (
       <div className="p-8 text-center text-muted-foreground border border-dashed rounded-xl bg-secondary/20">
@@ -103,7 +131,7 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({ logs, onInspectJso
                   {formatTimestamp(ts)}
                 </td>
                 <td className="p-3">{getSeverityBadge(log.severity)}</td>
-                <td className="p-3 font-semibold text-foreground">{eventType}</td>
+                <td className="p-3">{formatEventType(eventType)}</td>
                 <td className="p-3 font-mono text-xs text-foreground/80">
                   {subject}
                 </td>
