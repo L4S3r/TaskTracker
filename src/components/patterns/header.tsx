@@ -21,11 +21,14 @@ import {
   Check,
   Activity,
   AlertTriangle,
+  Search,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { NotificationCenter } from "@/components/patterns/notification-center";
+import { useCommandPalette } from "@/lib/command-palette-context";
 
 export function Header() {
+  const { open: openCommandPalette } = useCommandPalette();
   const {
     user,
     activeWorkspace,
@@ -249,6 +252,21 @@ export function Header() {
 
           {/* User profile / Theme / Auth Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {user && (
+              <button
+                type="button"
+                onClick={openCommandPalette}
+                className="hidden md:flex items-center gap-2 h-9 px-3 rounded-xl border border-border/80 bg-secondary/40 hover:bg-secondary/80 text-xs text-muted-foreground hover:text-foreground transition-all shadow-2xs cursor-pointer"
+                title="Open Command Palette (Ctrl+K)"
+                aria-label="Open Command Palette"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span className="text-xs">Quick search...</span>
+                <kbd className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted border border-border/80">
+                  Ctrl K
+                </kbd>
+              </button>
+            )}
             <ThemeToggle />
             {user ? (
               <>

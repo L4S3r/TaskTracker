@@ -3,7 +3,10 @@ import "@/styles/globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast-context";
+import { CommandPaletteProvider } from "@/lib/command-palette-context";
+import { CommandPalette } from "@/components/patterns/command-palette";
 import { Header } from "@/components/patterns/header";
+import { MobileNavBar } from "@/components/patterns/mobile-nav-bar";
 
 export const metadata: Metadata = {
   title: "TaskTracker - Team & Personal Project Workspace",
@@ -47,10 +50,14 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
-              <Header />
-              <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-                {children}
-              </main>
+              <CommandPaletteProvider>
+                <Header />
+                <CommandPalette />
+                <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-6">
+                  {children}
+                </main>
+                <MobileNavBar />
+              </CommandPaletteProvider>
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>

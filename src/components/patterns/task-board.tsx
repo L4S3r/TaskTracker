@@ -14,6 +14,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { TaskModal } from "./task-modal";
 import { TaskDetailModal } from "./task-detail-modal";
 import { CreateWorkspaceModal } from "./create-workspace-modal";
+import { SprintAnalyticsModal } from "./sprint-analytics-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
@@ -96,6 +97,13 @@ export function TaskBoard() {
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
   const [justArrivedTaskId, setJustArrivedTaskId] = useState<string | null>(null);
+
+  // Drag and drop states
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [activeDropCol, setActiveDropCol] = useState<string | null>(null);
+
+  // Sprint Analytics Modal state
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   const handledDeepLinkRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +287,55 @@ export function TaskBoard() {
         toast.error("Sync Failed", "Could not persist status change. Reverting.");
       }
     }, 180);
+  };
+
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    if (!canMove) return;
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData("text/plain", taskId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, colId: string) => {
+    if (!canMove) return;
+    e.preventDefault();
+    if (activeDropCol !== colId) {
+      setActiveDropCol(colId);
+    }
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragLeave = (e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    if (activeDropCol === colId) {
+      setActiveDropCol(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    const droppedId = e.dataTransfer.getData("text/plain") || draggedTaskId;
+    setActiveDropCol(null);
+    setDraggedTaskId(null);
+
+    if (!droppedId || !canMove) return;
+    const task = tasks.find((t) => t.id === droppedId);
+    if (!task) return;
+
+    const targetStatus: TaskStatus = colId as TaskStatus;
+    if (
+      task.status === targetStatus ||
+      (colId === "in_progress" && (task.status === "in_progress" || task.status === "review"))
+    ) {
+      return;
+    }
+
+    handleStatusChange(droppedId, targetStatus);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setActiveDropCol(null);
   };
 
   const handleConfirmDeleteTask = async () => {
@@ -483,17 +540,26 @@ export function TaskBoard() {
 
       {/* Sprint Velocity Progress Bar */}
       {tasks.length > 0 && (
-        <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs space-y-2">
+        <div
+          onClick={() => setIsAnalyticsOpen(true)}
+          className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs space-y-2 hover:border-primary/50 hover:bg-card/90 transition-all cursor-pointer group"
+          title="Click to view full sprint workload & velocity analytics"
+        >
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-foreground flex items-center gap-2">
-              <span>Sprint Progress & Velocity</span>
+              <span className="group-hover:text-primary transition-colors">Sprint Progress &amp; Velocity</span>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted font-medium text-muted-foreground">
                 {doneCount} of {tasks.length} Completed
               </span>
             </span>
-            <span className="font-bold text-primary text-sm">
-              {Math.round((doneCount / tasks.length) * 100)}%
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground group-hover:text-primary transition-colors hidden sm:inline">
+                View Analytics &rarr;
+              </span>
+              <span className="font-bold text-primary text-sm">
+                {Math.round((doneCount / tasks.length) * 100)}%
+              </span>
+            </div>
           </div>
           <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
             <div
@@ -624,10 +690,19 @@ export function TaskBoard() {
               return t.status === col.id;
             });
 
+            const isDroppingHere = activeDropCol === col.id && draggedTaskId !== null;
+
             return (
               <div
                 key={col.id}
-                className={`flex flex-col rounded-xl border border-border/80 bg-secondary/30 p-3.5 min-h-[520px] ${col.accentColor}`}
+                onDragOver={(e) => handleDragOver(e, col.id)}
+                onDragLeave={(e) => handleDragLeave(e, col.id)}
+                onDrop={(e) => handleDrop(e, col.id)}
+                className={`flex flex-col rounded-2xl border transition-all duration-200 p-3.5 min-h-[540px] ${
+                  isDroppingHere
+                    ? "border-primary/80 bg-primary/5 ring-2 ring-primary/30 shadow-lg scale-[1.008]"
+                    : "border-border/80 bg-secondary/30"
+                } ${col.accentColor}`}
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
@@ -639,6 +714,13 @@ export function TaskBoard() {
                     {colTasks.length}
                   </span>
                 </div>
+
+                {/* Drop Cue Indicator */}
+                {isDroppingHere && (
+                  <div className="flex items-center justify-center p-3 mb-3 rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary text-xs font-semibold animate-pulse">
+                    <span>Drop to move to {col.label}</span>
+                  </div>
+                )}
 
                 {/* Tasks List */}
                 <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
@@ -661,12 +743,20 @@ export function TaskBoard() {
 
                     const isTransitioning = transitioningTaskId === task.id;
                     const isJustArrived = justArrivedTaskId === task.id;
+                    const isBeingDragged = draggedTaskId === task.id;
 
                     return (
                       <Card
                         key={task.id}
+                        draggable={canMove}
+                        onDragStart={(e) => handleDragStart(e, task.id)}
+                        onDragEnd={handleDragEnd}
                         onClick={() => setSelectedDetailTask(task)}
                         className={`border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group ${
+                          canMove ? "cursor-grab active:cursor-grabbing" : ""
+                        } ${
+                          isBeingDragged ? "opacity-30 scale-95 border-dashed border-primary ring-2 ring-primary/40" : ""
+                        } ${
                           isTransitioning ? "animate-slide-out-right pointer-events-none opacity-0" : ""
                         } ${
                           isJustArrived ? "animate-slide-in-left ring-2 ring-primary/40 shadow-lg" : ""
@@ -790,7 +880,7 @@ export function TaskBoard() {
                     );
                   })}
 
-                  {colTasks.length === 0 && (
+                  {colTasks.length === 0 && !isDroppingHere && (
                     <div className="flex flex-col items-center justify-center h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center space-y-2 bg-muted/10">
                       <p className="text-xs">No tasks in this stage</p>
                       {canCreate && col.id === "todo" && (
@@ -832,6 +922,16 @@ export function TaskBoard() {
           fetchTasksAndMembers();
         }}
         members={members}
+      />
+
+      {/* Sprint Health & Workload Analytics Modal */}
+      <SprintAnalyticsModal
+        isOpen={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+        tasks={tasks}
+        members={members}
+        workspaceName={activeWorkspace?.name}
+        onSelectTask={(task) => setSelectedDetailTask(task)}
       />
 
       {/* Task Deletion Confirmation Dialog */}
