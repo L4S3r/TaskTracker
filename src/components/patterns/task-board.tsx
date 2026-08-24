@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { Task, TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
@@ -73,7 +74,11 @@ function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
 }
 
 export function TaskBoard() {
-  const { token, user, activeWorkspace, workspaces, userRole, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
+  const searchParams = useSearchParams();
+  const urlTaskId = searchParams?.get("task") || searchParams?.get("taskId");
+  const urlWorkspaceId = searchParams?.get("workspace") || searchParams?.get("workspace_id");
+
+  const { token, user, activeWorkspace, workspaces, switchWorkspace, userRole, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -91,6 +96,8 @@ export function TaskBoard() {
   const [transitioningTaskId, setTransitioningTaskId] = useState<string | null>(null);
   const [justArrivedTaskId, setJustArrivedTaskId] = useState<string | null>(null);
 
+  const handledDeepLinkRef = useRef<string | null>(null);
+
   // RBAC Permission resolution
   const canCreate = !isViewer;
   const canMove = !isViewer;
@@ -106,6 +113,63 @@ export function TaskBoard() {
     }
     return false;
   };
+
+  // Deep link workspace auto-switch
+  useEffect(() => {
+    if (urlWorkspaceId && activeWorkspace?.id !== urlWorkspaceId && workspaces.length > 0) {
+      const wsExists = workspaces.some((w) => w.id === urlWorkspaceId);
+      if (wsExists) {
+        switchWorkspace(urlWorkspaceId);
+      }
+    }
+  }, [urlWorkspaceId, activeWorkspace?.id, workspaces, switchWorkspace]);
+
+  // Deep link direct task modal open
+  useEffect(() => {
+    if (!urlTaskId || handledDeepLinkRef.current === urlTaskId) return;
+
+    // First check in currently loaded tasks
+    const existing = tasks.find((t) => t.id === urlTaskId);
+    if (existing) {
+      setSelectedDetailTask(existing);
+      handledDeepLinkRef.current = urlTaskId;
+      return;
+    }
+
+    // If not found in active list, fetch single task directly
+    if (token && !isLoading) {
+      api
+        .getTask(token, urlTaskId)
+        .then((res) => {
+          if (res.task) {
+            setSelectedDetailTask(res.task);
+            handledDeepLinkRef.current = urlTaskId;
+          }
+        })
+        .catch(() => {
+          // Task not found or permission denied
+        });
+    }
+  }, [urlTaskId, tasks, token, isLoading]);
+
+  const handleCloseDetailModal = useCallback(() => {
+    setSelectedDetailTask(null);
+    if (typeof window !== "undefined" && window.location.search) {
+      const url = new URL(window.location.href);
+      if (
+        url.searchParams.has("task") ||
+        url.searchParams.has("taskId") ||
+        url.searchParams.has("workspace") ||
+        url.searchParams.has("workspace_id")
+      ) {
+        url.searchParams.delete("task");
+        url.searchParams.delete("taskId");
+        url.searchParams.delete("workspace");
+        url.searchParams.delete("workspace_id");
+        window.history.replaceState({}, "", url.pathname + (url.search || ""));
+      }
+    }
+  }, []);
 
   const fetchTasksAndMembers = useCallback(async () => {
     if (!token) return;
@@ -675,9 +739,12 @@ export function TaskBoard() {
       <TaskDetailModal
         task={selectedDetailTask}
         isOpen={Boolean(selectedDetailTask)}
-        onClose={() => setSelectedDetailTask(null)}
+        onClose={handleCloseDetailModal}
         onTaskUpdated={fetchTasksAndMembers}
-        onTaskDeleted={fetchTasksAndMembers}
+        onTaskDeleted={() => {
+          handleCloseDetailModal();
+          fetchTasksAndMembers();
+        }}
         members={members}
       />
 

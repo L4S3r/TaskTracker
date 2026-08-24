@@ -429,6 +429,15 @@ class ApiClient {
     return { status: "SUCCESS", count: tasks.length, tasks };
   }
 
+  async getTask(token: string | null | undefined, taskId: string): Promise<{ status: string; task: Task }> {
+    const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}`, {
+      method: "GET",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse<{ status: string; task: Task }>(res);
+  }
+
   async createTask(
     token: string,
     taskData: {

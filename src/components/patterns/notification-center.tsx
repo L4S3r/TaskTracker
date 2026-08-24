@@ -205,7 +205,11 @@ export function NotificationCenter() {
                       </p>
                       {notif.link && (
                         <Link
-                          href={notif.link}
+                          href={
+                            notif.link.startsWith("/dashboard")
+                              ? notif.link.replace(/^\/dashboard/, "") || "/"
+                              : notif.link
+                          }
                           onClick={() => setIsOpen(false)}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline mt-1.5"
                         >

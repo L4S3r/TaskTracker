@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { TaskBoard } from "@/components/patterns/task-board";
@@ -23,7 +23,20 @@ export default function HomePage() {
   }
 
   if (user) {
-    return <TaskBoard />;
+    return (
+      <Suspense
+        fallback={
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <p className="text-xs text-muted-foreground">Loading workspace...</p>
+            </div>
+          </div>
+        }
+      >
+        <TaskBoard />
+      </Suspense>
+    );
   }
 
   return (
