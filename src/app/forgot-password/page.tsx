@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-xl font-bold tracking-tight">Forgot Password</CardTitle>
           <CardDescription>
-            Enter your registered account email and we'll send you a secure link to reset your password.
+            Enter your registered account email and we&apos;ll send you a secure link to reset your password.
           </CardDescription>
         </CardHeader>
 
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-[11px] text-muted-foreground text-left">
-                <strong>Tip:</strong> The reset link is valid for 15 minutes. Be sure to check your spam or junk folder if it doesn't appear shortly.
+                <strong>Tip:</strong> The reset link is valid for 15 minutes. Be sure to check your spam or junk folder if it doesn&apos;t appear shortly.
               </div>
             </div>
           ) : (
