@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { Task, TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
 import { useWorkspaceSocket } from "@/lib/use-workspace-socket";
@@ -97,10 +98,35 @@ export function TaskBoard() {
   const [justArrivedTaskId, setJustArrivedTaskId] = useState<string | null>(null);
 
   const handledDeepLinkRef = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // RBAC Permission resolution
   const canCreate = !isViewer;
   const canMove = !isViewer;
+
+  // Global Keyboard Shortcuts (N = New Task, / = Search Focus)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+
+      if (!isInput) {
+        if (e.key === "n" || e.key === "N") {
+          if (canCreate && !isModalOpen && !selectedDetailTask) {
+            e.preventDefault();
+            setIsModalOpen(true);
+          }
+        } else if (e.key === "/") {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canCreate, isModalOpen, selectedDetailTask]);
 
   const canDeleteTask = (task: Task): boolean => {
     if (isAdmin) return true;
@@ -208,6 +234,7 @@ export function TaskBoard() {
         if (prev.some((t) => t.id === newTask.id)) return prev;
         return [newTask, ...prev];
       });
+      toast.info("Task Created", `"${newTask.title}" was added by a team member.`);
     },
     onTaskUpdated: (updatedTask) => {
       setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t)));
@@ -236,11 +263,20 @@ export function TaskBoard() {
         setJustArrivedTaskId((curr) => (curr === taskId ? null : curr));
       }, 350);
 
+      const statusLabels: Record<TaskStatus, string> = {
+        todo: "To Do",
+        in_progress: "In Progress",
+        review: "Review",
+        done: "Completed",
+      };
+      toast.success("Task Advanced", `Moved to ${statusLabels[newStatus]}`);
+
       // 4. Persist to API
       try {
         await api.updateTask(token, taskId, { status: newStatus });
       } catch {
         fetchTasksAndMembers();
+        toast.error("Sync Failed", "Could not persist status change. Reverting.");
       }
     }, 180);
   };
@@ -249,13 +285,16 @@ export function TaskBoard() {
     if (!token || !taskToDelete || !canDeleteTask(taskToDelete)) return;
     setIsDeletingTask(true);
     const targetId = taskToDelete.id;
+    const taskTitle = taskToDelete.title;
 
     // Optimistic deletion
     setTasks((prev) => prev.filter((t) => t.id !== targetId));
     try {
       await api.deleteTask(token, targetId);
+      toast.success("Task Deleted", `"${taskTitle}" was removed from the sprint board.`);
     } catch {
       fetchTasksAndMembers();
+      toast.error("Failed to Delete", "Could not delete task deliverable.");
     } finally {
       setIsDeletingTask(false);
       setTaskToDelete(null);
@@ -384,6 +423,9 @@ export function TaskBoard() {
             <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm">
               <Plus className="h-4 w-4" />
               <span>New Task</span>
+              <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-primary-foreground/20 text-primary-foreground">
+                N
+              </kbd>
             </Button>
           ) : (
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/80 bg-secondary/50 text-[11px] text-muted-foreground font-medium">
@@ -396,7 +438,7 @@ export function TaskBoard() {
 
       {/* Metrics Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card shadow-xs">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Tasks</p>
             <p className="text-xl font-bold text-foreground mt-0.5">{tasks.length}</p>
@@ -406,7 +448,7 @@ export function TaskBoard() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card shadow-xs">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">In Progress</p>
             <p className="text-xl font-bold text-blue-500 mt-0.5">{inProgressCount}</p>
@@ -416,7 +458,7 @@ export function TaskBoard() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card shadow-xs">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Completed</p>
             <p className="text-xl font-bold text-emerald-500 mt-0.5">{doneCount}</p>
@@ -426,7 +468,7 @@ export function TaskBoard() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-xs">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-card shadow-xs">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Overdue</p>
             <p className={`text-xl font-bold mt-0.5 ${overdueCount > 0 ? "text-destructive" : "text-foreground"}`}>
@@ -439,19 +481,43 @@ export function TaskBoard() {
         </div>
       </div>
 
+      {/* Sprint Velocity Progress Bar */}
+      {tasks.length > 0 && (
+        <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-foreground flex items-center gap-2">
+              <span>Sprint Progress & Velocity</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted font-medium text-muted-foreground">
+                {doneCount} of {tasks.length} Completed
+              </span>
+            </span>
+            <span className="font-bold text-primary text-sm">
+              {Math.round((doneCount / tasks.length) * 100)}%
+            </span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500 rounded-full"
+              style={{ width: `${Math.round((doneCount / tasks.length) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 rounded-xl border border-border/80 bg-card shadow-xs">
         {/* Search Input */}
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search tasks, assignees, tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-11 min-h-[44px] w-full rounded-xl border border-input bg-background dark:bg-slate-900/80 pl-10 pr-11 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
+            className="h-11 min-h-[44px] w-full rounded-xl border border-input bg-background dark:bg-slate-900/80 pl-10 pr-14 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-colors"
           />
-          {searchQuery && (
+          {searchQuery ? (
             <button
               onClick={() => setSearchQuery("")}
               className="absolute right-0 top-0 bottom-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-foreground p-2 rounded-r-xl hover:bg-muted/70 cursor-pointer transition-colors"
@@ -460,6 +526,10 @@ export function TaskBoard() {
             >
               <X className="h-4 w-4" />
             </button>
+          ) : (
+            <kbd className="absolute right-3 top-3 hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground bg-muted border border-border/80 pointer-events-none">
+              /
+            </kbd>
           )}
         </div>
 
@@ -643,12 +713,17 @@ export function TaskBoard() {
                           {task.tags && task.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {task.tags.map((tag) => (
-                                <span
+                                <button
                                   key={tag}
-                                  className="inline-block rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSearchQuery(tag);
+                                  }}
+                                  className="inline-flex items-center rounded-md bg-muted/80 hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors cursor-pointer"
+                                  title={`Filter by #${tag}`}
                                 >
                                   #{tag}
-                                </span>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -716,8 +791,19 @@ export function TaskBoard() {
                   })}
 
                   {colTasks.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center">
+                    <div className="flex flex-col items-center justify-center h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center space-y-2 bg-muted/10">
                       <p className="text-xs">No tasks in this stage</p>
+                      {canCreate && col.id === "todo" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsModalOpen(true)}
+                          className="h-8 text-xs gap-1 shadow-2xs"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Add Task</span>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

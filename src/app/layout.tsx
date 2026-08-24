@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { ToastProvider } from "@/lib/toast-context";
 import { Header } from "@/components/patterns/header";
 
 export const metadata: Metadata = {
@@ -45,10 +46,12 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-200">
         <ThemeProvider>
           <AuthProvider>
-            <Header />
-            <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-              {children}
-            </main>
+            <ToastProvider>
+              <Header />
+              <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+                {children}
+              </main>
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import { AuditLog } from "@/lib/tasks-store";
 import { fetchWorkspaceAuditLogs, fetchGlobalAuditLogs } from "@/services/audit-service";
 import { AuditLogTable } from "@/components/patterns/audit-log-table";
@@ -25,10 +26,13 @@ import {
   Copy,
   Check,
   AlertCircle,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 
 export function AuditLogsView() {
   const { token, activeWorkspace, isAdmin, isSuperAdmin } = useAuth();
+  const { toast } = useToast();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +95,43 @@ export function AuditLogsView() {
   const handleCopyJson = (payload: any) => {
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setCopiedLogJson(true);
+    toast.info("JSON Copied", "Telemetry payload copied to clipboard.");
     setTimeout(() => setCopiedLogJson(false), 2000);
+  };
+
+  const handleExportJson = () => {
+    if (filteredLogs.length === 0) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredLogs, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `audit-telemetry-${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    toast.success("Telemetry Exported", `Downloaded ${filteredLogs.length} audit records as JSON.`);
+  };
+
+  const handleExportCsv = () => {
+    if (filteredLogs.length === 0) return;
+    const headers = ["Timestamp", "Event", "Actor", "IP Address", "Severity", "Workspace ID", "Details"];
+    const rows = filteredLogs.map((l) => [
+      `"${l.timestamp || l.created_at || ""}"`,
+      `"${l.event_type || l.event || l.action || ""}"`,
+      `"${l.subject_id || l.actor_email || l.actor || ""}"`,
+      `"${l.ip_address || l.ip || ""}"`,
+      `"${l.severity || "INFO"}"`,
+      `"${l.workspace_id || ""}"`,
+      `"${JSON.stringify(l.details || l.metadata || {}).replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", encodedUri);
+    downloadAnchor.setAttribute("download", `audit-telemetry-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    toast.success("Telemetry Exported", `Downloaded ${filteredLogs.length} audit records as CSV.`);
   };
 
   const filteredLogs = logs.filter((log) => {
@@ -156,7 +196,7 @@ export function AuditLogsView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Scope Toggle (For Superadmins) */}
           {isSuperAdmin && (
             <div className="flex items-center rounded-xl bg-secondary/80 p-1 border border-border/70 text-xs">
@@ -169,7 +209,7 @@ export function AuditLogsView() {
                   }`}
               >
                 <Building2 className="h-3.5 w-3.5" />
-                <span>Workspace Scope</span>
+                <span>Workspace</span>
               </button>
               <button
                 type="button"
@@ -180,10 +220,22 @@ export function AuditLogsView() {
                   }`}
               >
                 <Globe2 className="h-3.5 w-3.5 text-primary" />
-                <span>Organization Console</span>
+                <span>Global</span>
               </button>
             </div>
           )}
+
+          {/* Export Telemetry */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            className="gap-1.5 text-xs"
+            title="Export CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </Button>
 
           {/* Refresh Button */}
           <Button

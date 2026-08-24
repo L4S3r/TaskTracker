@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { WorkspaceMember, WorkspaceRole } from "@/lib/tasks-store";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
 
 export function TeamManager() {
   const { token, user, activeWorkspace, workspaces, isAdmin, isSuperAdmin } = useAuth();
+  const { toast } = useToast();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -106,7 +108,10 @@ export function TeamManager() {
         ? await api.inviteWorkspaceMember(token, wsId, payload)
         : await api.inviteTeamMember(token, payload);
 
-      setSuccessMessage(res.message || `Transactional invitation dispatched to ${inviteEmail}.`);
+      const successMsg = res.message || `Transactional invitation dispatched to ${inviteEmail}.`;
+      setSuccessMessage(successMsg);
+      toast.success("Invitation Sent", `Dispatched invitation to ${inviteEmail}.`);
+
       const tokenString = res.invite_token || (res.member && res.member.invite_token);
       if (tokenString) {
         setGeneratedInviteUrl(`${window.location.origin}/invite/accept?token=${encodeURIComponent(tokenString)}`);
@@ -118,6 +123,7 @@ export function TeamManager() {
       setInviteEmail("");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to dispatch invitation.");
+      toast.error("Invitation Failed", err.message || "Could not dispatch invitation.");
     } finally {
       setIsSubmitting(false);
     }
@@ -127,6 +133,7 @@ export function TeamManager() {
     if (!generatedInviteUrl) return;
     navigator.clipboard.writeText(generatedInviteUrl);
     setCopiedLink(true);
+    toast.info("Link Copied", "Invitation link copied to clipboard.");
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
@@ -148,10 +155,12 @@ export function TeamManager() {
       setMembers((prev) =>
         prev.map((m) => (m.id === memberToEditRole.id || m.email === memberToEditRole.email ? { ...m, role: selectedNewRole } : m))
       );
+      toast.success("Clearance Updated", `Updated ${memberToEditRole.name || memberToEditRole.email} to ${selectedNewRole.toUpperCase()}.`);
       setMemberToEditRole(null);
       await fetchMembers();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to update member role.");
+      toast.error("Update Failed", err.message || "Could not update clearance.");
     } finally {
       setIsUpdatingRole(false);
     }
@@ -163,6 +172,7 @@ export function TeamManager() {
 
     const wsId = activeWorkspace?.id;
     const memberIdOrEmail = memberToDelete.id || memberToDelete.email;
+    const memberName = memberToDelete.name || memberToDelete.email;
 
     // Optimistic UI removal
     setMembers((prev) =>
@@ -175,11 +185,13 @@ export function TeamManager() {
       } else {
         await api.removeTeamMember(token, memberToDelete.email);
       }
+      toast.success("Member Removed", `${memberName} was removed from workspace.`);
       setSuccessMessage("Member removed from workspace");
       setTimeout(() => setSuccessMessage(null), 3500);
       await fetchMembers();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to remove member.");
+      toast.error("Removal Failed", err.message || "Could not remove member.");
       await fetchMembers();
     } finally {
       setIsDeleting(false);

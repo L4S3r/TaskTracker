@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { TrustedDevice } from "@/lib/tasks-store";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import {
 
 export function SecuritySettings() {
   const { user, token, logout, refreshProfile } = useAuth();
+  const { toast } = useToast();
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
   const [mfaData, setMfaData] = useState<{
     secret: string;
@@ -73,7 +75,7 @@ export function SecuritySettings() {
       const res = await api.getTrustedDevices(token);
       setTrustedDevices(res.devices || []);
     } catch {
-      // Non-fatal if endpoint is quiet
+      // Best effort telemetry
     } finally {
       setIsLoadingDevices(false);
     }
@@ -89,62 +91,65 @@ export function SecuritySettings() {
     setError(null);
     setVerificationError(null);
     setVerificationCode("");
-    setStep(1);
 
     try {
       const res = await api.setupMFA(token);
       setMfaData({
         secret: res.secret,
         provisioning_uri: res.provisioning_uri,
-        backup_codes: res.backup_codes,
+        backup_codes: res.backup_codes || [],
       });
 
       const qrUrl = await QRCode.toDataURL(res.provisioning_uri, {
-        width: 256,
-        margin: 2,
+        width: 240,
+        margin: 1,
         color: {
-          dark: "#000000",
-          light: "#ffffff",
+          dark: "#0F172A",
+          light: "#FFFFFF",
         },
       });
       setQrCodeDataUrl(qrUrl);
+      setStep(1);
       setIsMfaModalOpen(true);
     } catch (err: any) {
-      setError(err.message || "Failed to initialize MFA setup.");
+      setError(err.message || "Failed to initialize TOTP authenticator setup.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyAndActivateMFA = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !verificationCode.trim()) return;
-
+  const handleVerifyAndActivateMFA = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token || verificationCode.length !== 6) return;
     setIsVerifying(true);
     setVerificationError(null);
 
     try {
-      await api.verifyMFASetup(token, verificationCode.trim());
-      setStatusMessage("Two-factor authentication successfully verified and activated.");
+      await api.verifyMFASetup(token, verificationCode);
       await refreshProfile();
-      await fetchTrustedDevices();
       setIsMfaModalOpen(false);
+      setStatusMessage("Two-factor authentication has been successfully enforced.");
+      toast.success("MFA Activated", "Two-Factor Authentication is now actively securing your account.");
+      setVerificationCode("");
+      setTimeout(() => setStatusMessage(null), 5000);
     } catch (err: any) {
-      setVerificationError(err.message || "Invalid verification code. Please check your authenticator clock.");
+      setVerificationError(err.message || "Invalid authenticator code. Please check your app.");
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleDisableMFA = async () => {
-    if (!token || !confirm("Are you sure you want to disable Two-Factor Authentication?")) return;
+    if (!token || !confirm("Are you sure you want to disable two-factor authentication? This reduces your account security.")) return;
     setIsLoading(true);
     setError(null);
 
     try {
       await api.disableMFA(token);
-      setStatusMessage("Two-factor authentication has been disabled.");
       await refreshProfile();
+      setStatusMessage("Two-factor authentication has been disabled.");
+      toast.warning("MFA Disabled", "Two-Factor Authentication has been removed.");
+      setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
       setError(err.message || "Failed to disable MFA.");
     } finally {
@@ -160,10 +165,11 @@ export function SecuritySettings() {
     try {
       await api.revokeTrustedDevice(token, deviceId);
       setTrustedDevices((prev) => prev.filter((d) => d.id !== deviceId));
-      setDeviceActionMsg("Trusted device revoked. MFA verification will be required on its next login.");
+      setDeviceActionMsg("Device authorization revoked successfully.");
+      toast.success("Device Revoked", "Recognized browser session was signed out.");
       setTimeout(() => setDeviceActionMsg(null), 3500);
     } catch (err: any) {
-      setError(err.message || "Failed to revoke trusted device.");
+      setError(err.message || "Failed to revoke device authorization.");
     } finally {
       setDeviceRevokingId(null);
     }
@@ -182,6 +188,7 @@ export function SecuritySettings() {
       await api.revokeAllTrustedDevices(token);
       setTrustedDevices([]);
       setDeviceActionMsg("All trusted devices have been signed out and revoked.");
+      toast.success("All Sessions Revoked", "MFA will be required on all browsers.");
       setTimeout(() => setDeviceActionMsg(null), 3500);
     } catch (err: any) {
       setError(err.message || "Failed to revoke all trusted devices.");
@@ -194,6 +201,7 @@ export function SecuritySettings() {
     if (!mfaData) return;
     navigator.clipboard.writeText(mfaData.secret);
     setCopiedSecret(true);
+    toast.info("Secret Copied", "Authenticator secret copied to clipboard.");
     setTimeout(() => setCopiedSecret(false), 2000);
   };
 
@@ -201,6 +209,7 @@ export function SecuritySettings() {
     if (!mfaData) return;
     navigator.clipboard.writeText(mfaData.backup_codes.join("\n"));
     setCopiedCodes(true);
+    toast.info("Codes Copied", "Emergency backup codes copied to clipboard.");
     setTimeout(() => setCopiedCodes(false), 2000);
   };
 
@@ -218,6 +227,7 @@ export function SecuritySettings() {
     a.download = `recovery_codes_${user?.username || "auth_nz"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success("Codes Downloaded", "Saved recovery backup codes file.");
   };
 
   const getDeviceIcon = (label?: string, ua?: string) => {
