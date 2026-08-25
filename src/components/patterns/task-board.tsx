@@ -153,12 +153,21 @@ export function TaskBoard() {
     if (urlWorkspaceId && activeWorkspace?.id !== urlWorkspaceId && workspaces.length > 0) {
       const wsExists = workspaces.some((w) => w.id === urlWorkspaceId);
       if (wsExists) {
-        switchWorkspace(urlWorkspaceId);
+        switchWorkspace(urlWorkspaceId).catch(() => {});
+      } else {
+        // Unauthorized workspace URL access
+        toast.error("Access Restricted", "You do not have access to that workspace.");
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("workspace");
+          url.searchParams.delete("workspace_id");
+          window.history.replaceState({}, "", url.pathname + (url.search || ""));
+        }
       }
     }
-  }, [urlWorkspaceId, activeWorkspace?.id, workspaces, switchWorkspace]);
+  }, [urlWorkspaceId, activeWorkspace?.id, workspaces, switchWorkspace, toast]);
 
-  // Deep link direct task modal open
+  // Deep link direct task modal open & card highlight
   useEffect(() => {
     if (!urlTaskId || handledDeepLinkRef.current === urlTaskId) return;
 
@@ -166,6 +175,7 @@ export function TaskBoard() {
     const existing = tasks.find((t) => t.id === urlTaskId);
     if (existing) {
       setSelectedDetailTask(existing);
+      setJustArrivedTaskId(existing.id);
       handledDeepLinkRef.current = urlTaskId;
       return;
     }
@@ -177,14 +187,23 @@ export function TaskBoard() {
         .then((res) => {
           if (res.task) {
             setSelectedDetailTask(res.task);
+            setJustArrivedTaskId(res.task.id);
             handledDeepLinkRef.current = urlTaskId;
           }
         })
-        .catch(() => {
-          // Task not found or permission denied
+        .catch((err: any) => {
+          // Task not found or permission denied (404 / 403)
+          handledDeepLinkRef.current = urlTaskId;
+          toast.error("Task Not Found", "The requested task deliverable could not be found or access was restricted.");
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("task");
+            url.searchParams.delete("taskId");
+            window.history.replaceState({}, "", url.pathname + (url.search || ""));
+          }
         });
     }
-  }, [urlTaskId, tasks, token, isLoading]);
+  }, [urlTaskId, tasks, token, isLoading, toast]);
 
   const handleCloseDetailModal = useCallback(() => {
     setSelectedDetailTask(null);
@@ -748,6 +767,7 @@ export function TaskBoard() {
                     return (
                       <Card
                         key={task.id}
+                        id={`task-card-${task.id}`}
                         draggable={canMove}
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         onDragEnd={handleDragEnd}
@@ -759,7 +779,7 @@ export function TaskBoard() {
                         } ${
                           isTransitioning ? "animate-slide-out-right pointer-events-none opacity-0" : ""
                         } ${
-                          isJustArrived ? "animate-slide-in-left ring-2 ring-primary/40 shadow-lg" : ""
+                          isJustArrived ? "animate-slide-in-left ring-2 ring-primary shadow-xl bg-primary/5" : ""
                         } motion-reduce:animate-none motion-reduce:transform-none`}
                       >
                         <CardHeader className="p-3.5 pb-2 space-y-2">

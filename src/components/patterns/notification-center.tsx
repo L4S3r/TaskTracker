@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { InAppNotification } from "@/lib/tasks-store";
@@ -39,7 +40,8 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 export function NotificationCenter() {
-  const { token, activeWorkspace } = useAuth();
+  const router = useRouter();
+  const { token, activeWorkspace, switchWorkspace } = useAuth();
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -108,6 +110,44 @@ export function NotificationCenter() {
     }
   };
 
+  const handleNotificationClick = async (notif: InAppNotification, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    handleMarkAsRead(notif.id);
+    setIsOpen(false);
+
+    // Deep-linking: Extract workspace and task IDs from notification
+    let targetWsId = notif.workspace_id;
+    if (notif.link) {
+      try {
+        const dummy = new URL(notif.link, "http://localhost");
+        const wsParam = dummy.searchParams.get("workspace") || dummy.searchParams.get("workspace_id");
+        if (wsParam) targetWsId = wsParam;
+      } catch {}
+    }
+
+    // Step 1 & 2: Verify if target workspace matches active workspace; if different, switch first
+    if (targetWsId && activeWorkspace?.id !== targetWsId) {
+      try {
+        await switchWorkspace(targetWsId);
+      } catch {
+        // Handled via context 403 interceptor
+      }
+    }
+
+    // Step 3: Navigate to deep link
+    if (notif.link) {
+      const cleanLink = notif.link.startsWith("/dashboard")
+        ? notif.link.replace(/^\/dashboard/, "") || "/"
+        : notif.link;
+      router.push(cleanLink);
+    } else {
+      router.push("/");
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "TASK_ASSIGNED":
@@ -125,7 +165,7 @@ export function NotificationCenter() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card hover:bg-accent/60 transition-colors shadow-2xs text-muted-foreground hover:text-foreground"
+        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card hover:bg-accent/60 transition-colors shadow-2xs text-muted-foreground hover:text-foreground cursor-pointer"
         title="Notifications"
         aria-label="Notifications"
       >
@@ -154,7 +194,7 @@ export function NotificationCenter() {
                 variant="ghost"
                 size="sm"
                 onClick={handleMarkAllAsRead}
-                className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground px-2"
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground px-2 cursor-pointer"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 <span>Mark all read</span>
@@ -180,7 +220,7 @@ export function NotificationCenter() {
                 return (
                   <div
                     key={notif.id}
-                    onClick={() => handleMarkAsRead(notif.id)}
+                    onClick={(e) => handleNotificationClick(notif, e)}
                     className={`flex items-start gap-3 p-3.5 transition-colors cursor-pointer ${
                       isUnread
                         ? "bg-primary/10 hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25 border-l-2 border-primary"
@@ -204,18 +244,14 @@ export function NotificationCenter() {
                         {notif.message}
                       </p>
                       {notif.link && (
-                        <Link
-                          href={
-                            notif.link.startsWith("/dashboard")
-                              ? notif.link.replace(/^\/dashboard/, "") || "/"
-                              : notif.link
-                          }
-                          onClick={() => setIsOpen(false)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline mt-1.5"
+                        <button
+                          type="button"
+                          onClick={(e) => handleNotificationClick(notif, e)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline mt-1.5 cursor-pointer"
                         >
                           <span>View Details</span>
                           <ExternalLink className="h-2.5 w-2.5" />
-                        </Link>
+                        </button>
                       )}
                     </div>
                     {isUnread && (

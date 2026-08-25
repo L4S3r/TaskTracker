@@ -39,15 +39,24 @@ export function useWorkspaceSocket(
   const connect = useCallback(() => {
     if (!workspaceId || isUnmountedRef.current) return;
 
-    // Clean up existing socket safely
+    // Clean up existing socket safely before switching workspace
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
     if (socketRef.current) {
       socketRef.current.onopen = null;
       socketRef.current.onclose = null;
       socketRef.current.onerror = null;
       socketRef.current.onmessage = null;
-      socketRef.current.close();
+      socketRef.current.close(1000, "Switching workspace");
       socketRef.current = null;
     }
+    reconnectAttemptsRef.current = 0;
 
     const apiBase = process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8000";
     let wsUrl = apiBase.replace(/^http:\/\//i, "ws://").replace(/^https:\/\//i, "wss://");
@@ -104,10 +113,22 @@ export function useWorkspaceSocket(
         setIsConnected(false);
         if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
 
-        // Calculate backoff if disconnected abruptly or immediately errored
-        const connectionDuration = Date.now() - connectStartTime;
-        if (event.code !== 1000 && event.code !== 1008) {
-          // If connection dropped in under 2s, don't spin immediately — apply minimum 3s backoff
+        // Code 1008: Policy Violation (unauthorized workspace). Halt automatic reconnection retry loops.
+        if (event.code === 1008) {
+          console.warn(`[WebSocket] Disconnected with Code 1008 (Policy Violation) for workspace ${workspaceId}. Reconnection halted.`);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("auth:forbidden", {
+                detail: "WORKSPACE_MEMBERSHIP_REQUIRED: Real-time channel access denied for this workspace.",
+              })
+            );
+          }
+          return;
+        }
+
+        // Calculate backoff if disconnected abruptly or unexpectedly
+        if (event.code !== 1000) {
+          const connectionDuration = Date.now() - connectStartTime;
           const baseDelay = connectionDuration < 2000 ? 3000 : 1500;
           const delay = Math.min(baseDelay * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
           reconnectAttemptsRef.current += 1;

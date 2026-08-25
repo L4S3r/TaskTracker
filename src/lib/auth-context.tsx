@@ -199,9 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchWorkspace = useCallback(async (workspaceId: string) => {
     setPermissionAlert(null);
     try {
-      const res = await api.switchWorkspace(null, workspaceId);
+      const res = await api.switchWorkspace(token, workspaceId);
       if (res.access_token) {
         setToken(res.access_token);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("auth_token", res.access_token);
+        }
       }
       if (res.user) {
         const cleanUser = normalizeUser(res.user);
@@ -212,19 +215,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const target =
         activeWs ||
         workspaces.find((w) => w.id === workspaceId) ||
-        ({ id: workspaceId, name: "Workspace", slug: workspaceId, role: "admin" } as Workspace);
+        ({ id: workspaceId, name: "Workspace", slug: workspaceId, role: "viewer" } as Workspace);
 
       setActiveWorkspace(target);
       await fetchWorkspaces();
     } catch (err: any) {
-      // If switch endpoint failed, fallback to local switch
+      // If switch endpoint failed, fallback to local switch if in member list
       const fallbackTarget = workspaces.find((w) => w.id === workspaceId);
       if (fallbackTarget) {
         setActiveWorkspace(fallbackTarget);
       }
       throw err;
     }
-  }, [workspaces, setActiveWorkspace, fetchWorkspaces]);
+  }, [token, workspaces, setActiveWorkspace, fetchWorkspaces]);
 
   const createWorkspace = useCallback(async (data: { name: string; slug?: string; description?: string }): Promise<Workspace> => {
     const res = await api.createWorkspace(null, data);
@@ -358,6 +361,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [clearAuthSession, setActiveWorkspace]);
 
+  const workspacesRef = useRef<Workspace[]>([]);
+  workspacesRef.current = workspaces;
+
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  const setActiveWorkspaceRef = useRef(setActiveWorkspace);
+  setActiveWorkspaceRef.current = setActiveWorkspace;
+
   // Listen for unauthorized 401 & forbidden 403 events across the app
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -367,9 +382,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const handleForbidden = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       const detail = customEvent.detail || "You do not have sufficient permissions to perform this action.";
-      setPermissionAlert(detail);
+      
+      const isMembershipError =
+        detail.includes("WORKSPACE_MEMBERSHIP_REQUIRED") ||
+        detail.toLowerCase().includes("workspace membership") ||
+        detail.toLowerCase().includes("access to that workspace");
+
+      if (isMembershipError) {
+        const msg = "You do not have access to that workspace.";
+        setPermissionAlert(msg);
+        
+        // Auto-redirect to default workspace or dashboard
+        const currentWorkspaces = workspacesRef.current;
+        if (currentWorkspaces.length > 0) {
+          const defaultWs = currentWorkspaces[0];
+          setActiveWorkspaceRef.current(defaultWs);
+          api.setActiveWorkspaceId(defaultWs.id);
+        }
+        
+        if (typeof window !== "undefined") {
+          // Clean unauthorized workspace query params
+          if (window.location.search) {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("workspace") || url.searchParams.has("workspace_id")) {
+              url.searchParams.delete("workspace");
+              url.searchParams.delete("workspace_id");
+              window.history.replaceState({}, "", url.pathname + (url.search || ""));
+            }
+          }
+          if (pathnameRef.current !== "/") {
+            routerRef.current.push("/");
+          }
+        }
+      } else {
+        setPermissionAlert(detail);
+      }
+
       setTimeout(() => {
-        setPermissionAlert((curr) => (curr === detail ? null : curr));
+        setPermissionAlert((curr) => (curr ? null : curr));
       }, 7000);
     };
 

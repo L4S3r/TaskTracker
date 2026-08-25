@@ -44,7 +44,7 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ onOpenNewTask, onOpenNewWorkspace }: CommandPaletteProps) {
   const { isOpen, close } = useCommandPalette();
-  const { user, token, activeWorkspace, workspaces, switchWorkspace, isAdmin, logout } = useAuth();
+  const { user, token, activeWorkspace, workspaces, switchWorkspace, isAdmin, isViewer, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const router = useRouter();
@@ -134,7 +134,7 @@ export function CommandPalette({ onOpenNewTask, onOpenNewWorkspace }: CommandPal
 
   // 2. Actions Category
   if (user) {
-    if (onOpenNewTask) {
+    if (onOpenNewTask && !isViewer) {
       items.push({
         id: "act_new_task",
         category: "Actions",

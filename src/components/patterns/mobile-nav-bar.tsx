@@ -19,7 +19,7 @@ interface MobileNavBarProps {
 }
 
 export function MobileNavBar({ onOpenNewTask }: MobileNavBarProps) {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isViewer } = useAuth();
   const { open: openCommandPalette } = useCommandPalette();
   const pathname = usePathname();
 
@@ -62,24 +62,26 @@ export function MobileNavBar({ onOpenNewTask }: MobileNavBarProps) {
           <span className="text-[10px] mt-0.5">Search</span>
         </button>
 
-        {/* 3. Center Elevated FAB: Quick Add Task */}
-        <div className="relative -top-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenNewTask) {
-                onOpenNewTask();
-              } else {
-                openCommandPalette();
-              }
-            }}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary-hover active:scale-95 transition-all cursor-pointer border-4 border-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            aria-label="Create New Deliverable"
-            title="Create Task"
-          >
-            <Plus className="h-6 w-6 stroke-[2.5]" />
-          </button>
-        </div>
+        {/* 3. Center Elevated FAB: Quick Add Task (Gated for non-viewers) */}
+        {!isViewer && (
+          <div className="relative -top-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenNewTask) {
+                  onOpenNewTask();
+                } else {
+                  openCommandPalette();
+                }
+              }}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary-hover active:scale-95 transition-all cursor-pointer border-4 border-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              aria-label="Create New Deliverable"
+              title="Create Task"
+            >
+              <Plus className="h-6 w-6 stroke-[2.5]" />
+            </button>
+          </div>
+        )}
 
         {/* 4. Team Members Link */}
         <Link

@@ -94,9 +94,11 @@ class ApiClient {
 
     if (!res.ok) {
       let detail = "An unexpected error occurred.";
+      let rawErrorObj: any = null;
       try {
         const errorJson = await res.json();
-        const rawDetail = errorJson.detail || errorJson.reason || errorJson.message || errorJson.error;
+        rawErrorObj = errorJson;
+        const rawDetail = errorJson.detail || errorJson.reason || errorJson.message || errorJson.error || errorJson.code;
         if (typeof rawDetail === "string") {
           detail = rawDetail;
         } else if (Array.isArray(rawDetail)) {
@@ -111,10 +113,28 @@ class ApiClient {
       }
 
       if (res.status === 403) {
+        const isMembershipError =
+          detail.includes("WORKSPACE_MEMBERSHIP_REQUIRED") ||
+          detail.toLowerCase().includes("workspace membership") ||
+          rawErrorObj?.code === "WORKSPACE_MEMBERSHIP_REQUIRED" ||
+          rawErrorObj?.error === "WORKSPACE_MEMBERSHIP_REQUIRED";
+
         if (typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent("auth:forbidden", {
-              detail: detail || "You do not have sufficient permissions to perform this action.",
+              detail: isMembershipError
+                ? "WORKSPACE_MEMBERSHIP_REQUIRED: You do not have access to that workspace."
+                : (detail || "You do not have sufficient permissions to perform this action."),
+            })
+          );
+        }
+      }
+
+      if (res.status === 404) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("auth:notfound", {
+              detail: detail || "The requested resource was not found.",
             })
           );
         }
