@@ -144,37 +144,37 @@ export function Header() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/90 backdrop-blur-md transition-colors">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
           {/* Brand & Workspace Switcher */}
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-2.5 sm:gap-6 min-w-0">
             <Link
               href="/"
-              className="flex items-center gap-2.5 font-bold tracking-tight text-foreground text-lg group select-none shrink-0"
+              className="flex items-center gap-2 font-bold tracking-tight text-foreground text-base sm:text-lg group select-none shrink-0"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-700 text-primary-foreground shadow-sm group-hover:shadow-md transition-all">
-                <CheckSquare className="h-5 w-5" />
+              <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-700 text-primary-foreground shadow-sm group-hover:shadow-md transition-all">
+                <CheckSquare className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <span className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text hidden sm:inline-block">
+              <span className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text hidden md:inline-block">
                 TaskTracker
               </span>
             </Link>
 
             {/* Workspace Selector Dropdown */}
             {user && (
-              <div className="relative" ref={workspaceMenuRef}>
+              <div className="relative min-w-0" ref={workspaceMenuRef}>
                 <button
                   type="button"
                   onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-                  className="flex items-center gap-2 rounded-xl py-1.5 px-3 bg-secondary/50 hover:bg-secondary border border-border/70 text-xs font-semibold text-foreground transition-all cursor-pointer min-h-[40px] shadow-xs"
+                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl py-1 sm:py-1.5 px-2 sm:px-3 bg-secondary/50 hover:bg-secondary border border-border/70 text-xs font-semibold text-foreground transition-all cursor-pointer min-h-[36px] sm:min-h-[40px] shadow-xs max-w-[140px] xs:max-w-[180px] sm:max-w-[220px]"
                   aria-label="Select Workspace"
                   aria-expanded={showWorkspaceMenu}
                 >
-                  <Building2 className="h-4 w-4 text-primary shrink-0" />
-                  <span className="max-w-[110px] sm:max-w-[160px] truncate">
-                    {activeWorkspace?.name || (workspaces.length === 0 ? "No Workspace" : "Select Workspace")}
+                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="truncate text-xs">
+                    {activeWorkspace?.name || (workspaces.length === 0 ? "No Workspace" : "Select")}
                   </span>
                   {activeWorkspace && (
-                    <Badge variant={userRole as any} className="text-[9px] px-1.5 py-0 uppercase">
+                    <Badge variant={userRole as any} className="text-[9px] px-1 py-0 uppercase shrink-0 hidden xs:inline-flex">
                       {roleLabelMap[userRole] || userRole.toUpperCase()}
                     </Badge>
                   )}

@@ -137,6 +137,9 @@ export function TaskBoard() {
   // Sprint Analytics Modal state
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
+  // Mobile focused column filter ("all" | "todo" | "in_progress" | "done")
+  const [mobileActiveColumn, setMobileActiveColumn] = useState<TaskStatus | "all">("all");
+
   const handledDeepLinkRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -731,239 +734,266 @@ export function TaskBoard() {
           </Button>
         </div>
       ) : (
-        /* Kanban Columns Grid (To Do, In Progress, Done) */
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {COLUMNS.map((col) => {
-            const colTasks = filteredTasks.filter((t) => {
-              if (col.id === "in_progress") {
-                return t.status === "in_progress" || t.status === "review";
-              }
-              return t.status === col.id;
-            });
+        <div className="space-y-4">
+          {/* Mobile Segmented Column Tabs */}
+          <div className="md:hidden flex items-center p-1 bg-secondary/60 rounded-xl border border-border/80 gap-1 overflow-x-auto custom-scrollbar shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setMobileActiveColumn("all")}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer text-center min-h-[36px] ${
+                mobileActiveColumn === "all"
+                  ? "bg-card text-foreground shadow-xs font-bold border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              All ({filteredTasks.length})
+            </button>
+            {COLUMNS.map((col) => {
+              const count = filteredTasks.filter((t) =>
+                col.id === "in_progress" ? t.status === "in_progress" || t.status === "review" : t.status === col.id
+              ).length;
+              const isActive = mobileActiveColumn === col.id;
+              return (
+                <button
+                  key={col.id}
+                  type="button"
+                  onClick={() => setMobileActiveColumn(col.id)}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 min-h-[36px] ${
+                    isActive
+                      ? "bg-card text-foreground shadow-xs font-bold border border-border/60"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
+                  <span>{col.label}</span>
+                  <span className="text-[10px] opacity-75 font-bold">({count})</span>
+                </button>
+              );
+            })}
+          </div>
 
-            const isDroppingHere = activeDropCol === col.id && draggedTaskId !== null;
+          {/* Kanban Columns Grid (To Do, In Progress, Done) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+            {COLUMNS.map((col) => {
+              const isColVisibleOnMobile = mobileActiveColumn === "all" || mobileActiveColumn === col.id;
+              if (!isColVisibleOnMobile) return null;
 
-            return (
-              <div
-                key={col.id}
-                onDragOver={(e) => handleDragOver(e, col.id)}
-                onDragLeave={(e) => handleDragLeave(e, col.id)}
-                onDrop={(e) => handleDrop(e, col.id)}
-                className={`flex flex-col rounded-2xl border transition-all duration-200 min-h-[540px] overflow-hidden relative group/col ${
-                  isDroppingHere
-                    ? "border-primary/80 bg-primary/5 ring-2 ring-primary/30 shadow-lg scale-[1.008]"
-                    : `border-border/80 bg-secondary/30 ${col.accentBorder}`
-                }`}
-              >
-                {/* Moving Animated Gradient Bar Above the Column */}
-                <div className="relative w-full h-[5px] overflow-hidden shrink-0">
-                  <div className={`w-full h-full ${col.gradientClass}`} />
-                </div>
+              const colTasks = filteredTasks.filter((t) => {
+                if (col.id === "in_progress") {
+                  return t.status === "in_progress" || t.status === "review";
+                }
+                return t.status === col.id;
+              });
 
-                {/* Ambient Soft Glow bleed from top */}
+              const isDroppingHere = activeDropCol === col.id && draggedTaskId !== null;
+
+              return (
                 <div
-                  className={`absolute top-[5px] left-0 right-0 h-14 bg-gradient-to-b ${col.glowClass} pointer-events-none opacity-60 dark:opacity-80`}
-                />
-
-                <div className="p-3.5 flex flex-col flex-1 relative z-10">
-                  {/* Column Header */}
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor} ring-2 ring-background`} />
-                      <span className="text-xs font-bold uppercase tracking-wider text-foreground/90">{col.label}</span>
-                    </div>
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${col.badgeBg}`}>
-                      {colTasks.length}
-                    </span>
+                  key={col.id}
+                  onDragOver={(e) => handleDragOver(e, col.id)}
+                  onDragLeave={(e) => handleDragLeave(e, col.id)}
+                  onDrop={(e) => handleDrop(e, col.id)}
+                  className={`flex flex-col rounded-2xl border transition-all duration-200 min-h-[440px] sm:min-h-[540px] overflow-hidden relative group/col ${
+                    isDroppingHere
+                      ? "border-primary/80 bg-primary/5 ring-2 ring-primary/30 shadow-lg scale-[1.008]"
+                      : `border-border/80 bg-secondary/30 ${col.accentBorder}`
+                  }`}
+                >
+                  {/* Moving Animated Gradient Bar Above the Column */}
+                  <div className="relative w-full h-[5px] overflow-hidden shrink-0">
+                    <div className={`w-full h-full ${col.gradientClass}`} />
                   </div>
 
-                  {/* Drop Cue Indicator */}
-                  {isDroppingHere && (
-                    <div className="flex items-center justify-center p-3 mb-3 rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary text-xs font-semibold animate-pulse">
-                      <span>Drop to move to {col.label}</span>
+                  {/* Ambient Soft Glow bleed from top */}
+                  <div
+                    className={`absolute top-[5px] left-0 right-0 h-14 bg-gradient-to-b ${col.glowClass} pointer-events-none opacity-60 dark:opacity-80`}
+                  />
+
+                  <div className="p-3 sm:p-3.5 flex flex-col flex-1 relative z-10">
+                    {/* Column Header */}
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor} ring-2 ring-background`} />
+                        <span className="text-xs font-bold uppercase tracking-wider text-foreground/90">{col.label}</span>
+                      </div>
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${col.badgeBg}`}>
+                        {colTasks.length}
+                      </span>
                     </div>
-                  )}
 
-                {/* Tasks List */}
-                <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
-                  {colTasks.map((task) => {
-                    const dlInfo = getDeadlineInfo(task.due_date || task.dueDate, task.status);
-                    const canDelete = canDeleteTask(task);
+                    {/* Drop Cue Indicator */}
+                    {isDroppingHere && (
+                      <div className="flex items-center justify-center p-3 mb-3 rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary text-xs font-semibold animate-pulse">
+                        <span>Drop to move to {col.label}</span>
+                      </div>
+                    )}
 
-                    const taskAssignees =
-                      task.assignees && task.assignees.length > 0
-                        ? task.assignees
-                        : task.assignee_email
-                        ? [
-                            {
-                              email: task.assignee_email,
-                              name: task.assignee_name || task.assignee_email.split("@")[0],
-                              avatar_url: task.assignee_avatar,
-                            },
-                          ]
-                        : [];
+                    {/* Tasks List */}
+                    <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
+                      {colTasks.map((task) => {
+                        const dlInfo = getDeadlineInfo(task.due_date || task.dueDate, task.status);
+                        const canDelete = canDeleteTask(task);
 
-                    const isTransitioning = transitioningTaskId === task.id;
-                    const isJustArrived = justArrivedTaskId === task.id;
-                    const isBeingDragged = draggedTaskId === task.id;
+                        const taskAssignees =
+                          task.assignees && task.assignees.length > 0
+                            ? task.assignees
+                            : task.assignee_email
+                            ? [
+                                {
+                                  email: task.assignee_email,
+                                  name: task.assignee_name || task.assignee_email.split("@")[0],
+                                  avatar_url: task.assignee_avatar,
+                                },
+                              ]
+                            : [];
 
-                    return (
-                      <Card
-                        key={task.id}
-                        id={`task-card-${task.id}`}
-                        draggable={canMove}
-                        onDragStart={(e) => handleDragStart(e, task.id)}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => setSelectedDetailTask(task)}
-                        className={`border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group ${
-                          canMove ? "cursor-grab active:cursor-grabbing" : ""
-                        } ${
-                          isBeingDragged ? "opacity-30 scale-95 border-dashed border-primary ring-2 ring-primary/40" : ""
-                        } ${
-                          isTransitioning ? "animate-slide-out-right pointer-events-none opacity-0" : ""
-                        } ${
-                          isJustArrived ? "animate-slide-in-left ring-2 ring-primary shadow-xl bg-primary/5" : ""
-                        } motion-reduce:animate-none motion-reduce:transform-none`}
-                      >
-                        <CardHeader className="p-3.5 pb-2 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <Badge variant={task.priority as any}>{task.priority}</Badge>
-                            {canDelete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTaskToDelete(task);
-                                }}
-                                className="opacity-60 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all min-h-[44px] min-w-[44px] flex items-center justify-center -m-1.5 rounded-lg hover:bg-destructive/10 cursor-pointer"
-                                title="Delete task"
-                                aria-label={`Delete task ${task.title}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
+                        const isTransitioning = transitioningTaskId === task.id;
+                        const isJustArrived = justArrivedTaskId === task.id;
+                        const isBeingDragged = draggedTaskId === task.id;
 
-                          <CardTitle className="text-sm font-semibold leading-snug group-hover:text-primary transition-colors">
-                            {task.title}
-                          </CardTitle>
-                        </CardHeader>
+                        return (
+                          <Card
+                            key={task.id}
+                            id={`task-card-${task.id}`}
+                            draggable={canMove}
+                            onDragStart={(e) => handleDragStart(e, task.id)}
+                            onDragEnd={handleDragEnd}
+                            onClick={() => setSelectedDetailTask(task)}
+                            className={`border-border/80 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-150 bg-card cursor-pointer group ${
+                              canMove ? "cursor-grab active:cursor-grabbing" : ""
+                            } ${
+                              isBeingDragged ? "opacity-30 scale-95 border-dashed border-primary ring-2 ring-primary/40" : ""
+                            } ${
+                              isTransitioning ? "animate-slide-out-right pointer-events-none opacity-0" : ""
+                            } ${
+                              isJustArrived ? "animate-slide-in-left ring-2 ring-primary shadow-xl bg-primary/5" : ""
+                            } motion-reduce:animate-none motion-reduce:transform-none`}
+                          >
+                            <CardHeader className="p-3 sm:p-3.5 pb-2 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <Badge variant={task.priority as any}>{task.priority}</Badge>
+                                {canDelete && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskToDelete(task);
+                                    }}
+                                    className="opacity-60 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1.5 rounded-lg hover:bg-destructive/10 cursor-pointer"
+                                    title="Delete task"
+                                    aria-label={`Delete task ${task.title}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
 
-                        <CardContent className="p-3.5 pt-0 space-y-2.5">
-                          {task.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                              {task.description}
-                            </p>
-                          )}
+                              <CardTitle className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug line-clamp-2">
+                                {task.title}
+                              </CardTitle>
 
-                          {/* Deadline Badge */}
-                          {dlInfo && (
-                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[10px] ${dlInfo.className}`}>
-                              <Calendar className="h-3 w-3 shrink-0" />
-                              <span>{dlInfo.label}</span>
-                            </div>
-                          )}
+                              {task.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                  {task.description}
+                                </p>
+                              )}
+                            </CardHeader>
 
-                          {task.tags && task.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {task.tags.map((tag) => (
-                                <button
-                                  key={tag}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSearchQuery(tag);
-                                  }}
-                                  className="inline-flex items-center rounded-md bg-muted/80 hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors cursor-pointer"
-                                  title={`Filter by #${tag}`}
-                                >
-                                  #{tag}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Card Footer: Assignee Stack & Next Stage */}
-                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                            {/* Multi-Avatar Stack */}
-                            <div className="flex items-center gap-1.5">
-                              {taskAssignees.length > 0 ? (
-                                <div className="flex items-center -space-x-1.5">
-                                  {taskAssignees.slice(0, 3).map((a, i) => {
-                                    const memberMatch = members.find((m) => m.email.toLowerCase() === a.email.toLowerCase());
-                                    const avatarSrc = a.avatar_url || memberMatch?.avatar_url;
-                                    return (
-                                      <Avatar
-                                        key={a.email || i}
-                                        name={a.name || a.email}
-                                        src={avatarSrc}
-                                        size="sm"
-                                        className="ring-2 ring-card"
-                                        title={`${a.name || a.email} (${a.email})`}
-                                      />
-                                    );
-                                  })}
-                                  {taskAssignees.length > 3 && (
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground ring-2 ring-card">
-                                      +{taskAssignees.length - 3}
+                            <CardContent className="p-3 sm:p-3.5 pt-0 space-y-3">
+                              {/* Tags */}
+                              {task.tags && task.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {task.tags.map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-muted/80 text-muted-foreground border border-border/50"
+                                    >
+                                      #{tag}
                                     </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Footer: Date / Assignees / Action */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-border/60 text-xs text-muted-foreground gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {dlInfo ? (
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${dlInfo.className}`}
+                                    >
+                                      <Clock className="h-3 w-3 shrink-0" />
+                                      <span>{dlInfo.label}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground/60 italic">No deadline</span>
+                                  )}
+
+                                  {/* Multi-Assignee Avatars */}
+                                  {taskAssignees.length > 0 && (
+                                    <div className="flex items-center -space-x-1.5 overflow-hidden pl-1">
+                                      {taskAssignees.slice(0, 3).map((assignee, idx) => (
+                                        <Avatar
+                                          key={assignee.email || idx}
+                                          name={assignee.name || assignee.email}
+                                          src={assignee.avatar_url}
+                                          size="sm"
+                                          className="ring-2 ring-card h-6 w-6 text-[9px]"
+                                        />
+                                      ))}
+                                      {taskAssignees.length > 3 && (
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground ring-2 ring-card">
+                                          +{taskAssignees.length - 3}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground italic">Unassigned</span>
-                              )}
 
-                              {taskAssignees.length === 1 && (
-                                <span className="text-[11px] font-medium text-foreground/80 truncate max-w-[80px]">
-                                  {taskAssignees[0].name || taskAssignees[0].email.split("@")[0]}
-                                </span>
-                              )}
-                            </div>
+                                {/* Status advance quick button */}
+                                <div className="flex items-center gap-1 self-end sm:self-auto">
+                                  {canMove && col.id !== "done" && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const nextStatus: TaskStatus = col.id === "todo" ? "in_progress" : "done";
+                                        handleStatusChange(task.id, nextStatus);
+                                      }}
+                                      className="group/btn flex items-center gap-1.5 rounded-lg bg-secondary/80 hover:bg-primary hover:text-primary-foreground h-8 px-2.5 text-xs font-semibold text-secondary-foreground transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Move to next stage"
+                                      aria-label={`Advance task ${task.title} to next column`}
+                                    >
+                                      <span>Next</span>
+                                      <ArrowRight className="h-3 w-3 group-hover/btn:translate-x-0.5 transition-transform" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
 
-                            {/* Move task quick action */}
-                            <div className="flex items-center gap-1">
-                              {canMove && col.id !== "done" && (
-                                <button
-                                  disabled={isTransitioning}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const nextStatus: TaskStatus = col.id === "todo" ? "in_progress" : "done";
-                                    handleStatusChange(task.id, nextStatus);
-                                  }}
-                                  className="group/btn flex items-center gap-1.5 rounded-lg bg-secondary/80 hover:bg-primary hover:text-primary-foreground min-h-[44px] px-3 py-2 text-xs font-semibold text-secondary-foreground transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Move to next stage"
-                                  aria-label={`Advance task ${task.title} to next column`}
-                                >
-                                  <span>Next</span>
-                                  <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-
-                  {colTasks.length === 0 && !isDroppingHere && (
-                    <div className="flex flex-col items-center justify-center h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center space-y-2 bg-muted/10">
-                      <p className="text-xs">No tasks in this stage</p>
-                      {canCreate && col.id === "todo" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsModalOpen(true)}
-                          className="h-8 text-xs gap-1 shadow-2xs"
-                        >
-                          <Plus className="h-3 w-3" />
-                          <span>Add Task</span>
-                        </Button>
+                      {colTasks.length === 0 && !isDroppingHere && (
+                        <div className="flex flex-col items-center justify-center h-32 sm:h-36 rounded-xl border border-dashed border-border/70 text-muted-foreground p-4 text-center space-y-2 bg-muted/10">
+                          <p className="text-xs">No tasks in this stage</p>
+                          {canCreate && col.id === "todo" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsModalOpen(true)}
+                              className="h-8 text-xs gap-1 shadow-2xs"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>Add Task</span>
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
         </div>
       )}
 
