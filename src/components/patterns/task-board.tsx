@@ -33,10 +33,42 @@ import {
   CheckSquare,
 } from "lucide-react";
 
-const COLUMNS: { id: TaskStatus; label: string; accentColor: string; badgeBg: string; dotColor: string }[] = [
-  { id: "todo", label: "To Do", accentColor: "border-t-indigo-500", badgeBg: "bg-indigo-500/10 text-indigo-500", dotColor: "bg-indigo-500" },
-  { id: "in_progress", label: "In Progress", accentColor: "border-t-blue-500", badgeBg: "bg-blue-500/10 text-blue-500", dotColor: "bg-blue-500 animate-pulse" },
-  { id: "done", label: "Done", accentColor: "border-t-emerald-500", badgeBg: "bg-emerald-500/10 text-emerald-500", dotColor: "bg-emerald-500" },
+const COLUMNS: {
+  id: TaskStatus;
+  label: string;
+  gradientClass: string;
+  glowClass: string;
+  badgeBg: string;
+  dotColor: string;
+  accentBorder: string;
+}[] = [
+  {
+    id: "todo",
+    label: "To Do",
+    gradientClass: "kanban-gradient-todo",
+    glowClass: "from-indigo-500/25 via-purple-500/10 to-transparent",
+    badgeBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+    dotColor: "bg-indigo-500 shadow-xs shadow-indigo-500/50",
+    accentBorder: "border-indigo-500/20 hover:border-indigo-500/40",
+  },
+  {
+    id: "in_progress",
+    label: "In Progress",
+    gradientClass: "kanban-gradient-in-progress",
+    glowClass: "from-blue-500/25 via-cyan-500/10 to-transparent",
+    badgeBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+    dotColor: "bg-blue-500 animate-pulse shadow-xs shadow-blue-500/50",
+    accentBorder: "border-blue-500/20 hover:border-blue-500/40",
+  },
+  {
+    id: "done",
+    label: "Done",
+    gradientClass: "kanban-gradient-done",
+    glowClass: "from-emerald-500/25 via-teal-500/10 to-transparent",
+    badgeBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+    dotColor: "bg-emerald-500 shadow-xs shadow-emerald-500/50",
+    accentBorder: "border-emerald-500/20 hover:border-emerald-500/40",
+  },
 ];
 
 function getDeadlineInfo(dueDate: string | undefined, status: TaskStatus) {
@@ -717,29 +749,40 @@ export function TaskBoard() {
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={(e) => handleDragLeave(e, col.id)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`flex flex-col rounded-2xl border transition-all duration-200 p-3.5 min-h-[540px] ${
+                className={`flex flex-col rounded-2xl border transition-all duration-200 min-h-[540px] overflow-hidden relative group/col ${
                   isDroppingHere
                     ? "border-primary/80 bg-primary/5 ring-2 ring-primary/30 shadow-lg scale-[1.008]"
-                    : "border-border/80 bg-secondary/30"
-                } ${col.accentColor}`}
+                    : `border-border/80 bg-secondary/30 ${col.accentBorder}`
+                }`}
               >
-                {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
-                    <span className="text-xs font-bold uppercase tracking-wider text-foreground/90">{col.label}</span>
-                  </div>
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${col.badgeBg}`}>
-                    {colTasks.length}
-                  </span>
+                {/* Moving Animated Gradient Bar Above the Column */}
+                <div className="relative w-full h-[5px] overflow-hidden shrink-0">
+                  <div className={`w-full h-full ${col.gradientClass}`} />
                 </div>
 
-                {/* Drop Cue Indicator */}
-                {isDroppingHere && (
-                  <div className="flex items-center justify-center p-3 mb-3 rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary text-xs font-semibold animate-pulse">
-                    <span>Drop to move to {col.label}</span>
+                {/* Ambient Soft Glow bleed from top */}
+                <div
+                  className={`absolute top-[5px] left-0 right-0 h-14 bg-gradient-to-b ${col.glowClass} pointer-events-none opacity-60 dark:opacity-80`}
+                />
+
+                <div className="p-3.5 flex flex-col flex-1 relative z-10">
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/70">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor} ring-2 ring-background`} />
+                      <span className="text-xs font-bold uppercase tracking-wider text-foreground/90">{col.label}</span>
+                    </div>
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${col.badgeBg}`}>
+                      {colTasks.length}
+                    </span>
                   </div>
-                )}
+
+                  {/* Drop Cue Indicator */}
+                  {isDroppingHere && (
+                    <div className="flex items-center justify-center p-3 mb-3 rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-primary text-xs font-semibold animate-pulse">
+                      <span>Drop to move to {col.label}</span>
+                    </div>
+                  )}
 
                 {/* Tasks List */}
                 <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-0.5">
@@ -918,8 +961,9 @@ export function TaskBoard() {
                   )}
                 </div>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
         </div>
       )}
 

@@ -111,3 +111,42 @@
   }
 }
 
+/* Animated Moving Gradients for Kanban Columns */
+.kanban-gradient-todo {
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899, #6366f1);
+  background-size: 200% 200%;
+  animation: gradient-flow 4s ease infinite;
+}
+
+.kanban-gradient-in-progress {
+  background: linear-gradient(90deg, #0284c7, #3b82f6, #06b6d4, #0284c7);
+  background-size: 200% 200%;
+  animation: gradient-flow 3.5s ease infinite;
+}
+
+.kanban-gradient-done {
+  background: linear-gradient(90deg, #059669, #10b981, #14b8a6, #059669);
+  background-size: 200% 200%;
+  animation: gradient-flow 4.5s ease infinite;
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanban-gradient-todo,
+  .kanban-gradient-in-progress,
+  .kanban-gradient-done {
+    animation: none !important;
+  }
+}
+

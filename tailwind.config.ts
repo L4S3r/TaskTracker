@@ -71,11 +71,17 @@ const config: Config = {
           "50%": { transform: "scale(1.01)" },
           "100%": { transform: "scale(1)" },
         },
+        "gradient-flow": {
+          "0%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+          "100%": { backgroundPosition: "0% 50%" },
+        },
       },
       animation: {
         "slide-out-right": "slide-out-right 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "slide-in-left": "slide-in-left 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "card-land": "card-land-pulse 300ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "gradient-flow": "gradient-flow 4s ease infinite",
       },
     },
   },
