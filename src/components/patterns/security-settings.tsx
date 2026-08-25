@@ -86,7 +86,8 @@ export function SecuritySettings() {
     setIsLoadingPasskeys(true);
     try {
       const res = await api.getWebAuthnCredentials(token);
-      setPasskeys(res.credentials || []);
+      // Backend returns { status: "SUCCESS", count: X, passkeys: [...] }
+      setPasskeys(res.passkeys || (res as any).data?.passkeys || (res as any).credentials || []);
     } catch {
       // Backend may return empty list or not have credentials yet
       setPasskeys([]);
@@ -480,10 +481,18 @@ export function SecuritySettings() {
           ) : (
             <div className="space-y-2.5">
               {passkeys.map((pk: any, idx: number) => {
-                const credId = pk.id || pk.credential_id || `passkey-${idx}`;
-                const label = pk.device_label || pk.label || pk.name || "FIDO2 / WebAuthn Passkey";
-                const createdAt = pk.created_at ? new Date(pk.created_at).toLocaleDateString() : "Active";
-                const transports: string[] = pk.transports || ["internal"];
+                const credId = pk.credential_id || pk.id || `passkey-${idx}`;
+                const label = pk.device_label || pk.name || pk.label || "Windows Hello / Passkey";
+                const createdAt = pk.created_at ? new Date(pk.created_at).toLocaleDateString() : "Registered";
+                const lastUsed = pk.last_used_at
+                  ? new Date(pk.last_used_at).toLocaleDateString()
+                  : pk.created_at
+                  ? "Never used"
+                  : "Active";
+                const signCount = typeof pk.sign_count === "number" ? pk.sign_count : 0;
+                const transports: string[] = Array.isArray(pk.transports) && pk.transports.length > 0
+                  ? pk.transports
+                  : ["internal"];
 
                 return (
                   <div
@@ -499,20 +508,26 @@ export function SecuritySettings() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-foreground">{label}</span>
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">
-                            FIDO2 COSE
+                            FIDO2 / WebAuthn
                           </Badge>
                           {transports.map((t) => (
-                            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 uppercase">
+                            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 uppercase font-mono">
                               {t}
                             </Badge>
                           ))}
+                          {signCount > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+                              {signCount} {signCount === 1 ? "sign-in" : "sign-ins"}
+                            </Badge>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1 font-mono text-[10px]">
-                            ID: {credId.slice(0, 16)}...
+                            ID: {credId.length > 20 ? `${credId.slice(0, 16)}...` : credId}
                           </span>
                           <span>&bull; Registered: {createdAt}</span>
+                          {pk.last_used_at && <span>&bull; Last used: {lastUsed}</span>}
                         </div>
                       </div>
                     </div>

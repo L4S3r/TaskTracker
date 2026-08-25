@@ -48,6 +48,16 @@ export interface MFARequiredResponse {
   challenge_id: string;
 }
 
+export interface PasskeyItem {
+  credential_id: string;
+  public_key?: string;
+  sign_count?: number;
+  device_label?: string;
+  created_at?: string;
+  last_used_at?: string | null;
+  transports?: string[];
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -950,15 +960,17 @@ class ApiClient {
     return this.handleResponse<AuthSuccessResponse>(res, false);
   }
 
-  async getWebAuthnCredentials(token?: string): Promise<{ status: string; credentials: any[] }> {
+  async getWebAuthnCredentials(token?: string): Promise<{ status: string; count: number; passkeys: PasskeyItem[] }> {
     const res = await fetch(`${API_BASE}/auth/webauthn/credentials`, {
       method: "GET",
       headers: this.getHeaders(token),
       credentials: "include",
     });
     const data = await this.handleResponse<any>(res);
-    const credentials = Array.isArray(data) ? data : data.credentials || [];
-    return { status: "SUCCESS", credentials };
+    const passkeys: PasskeyItem[] = Array.isArray(data)
+      ? data
+      : data.passkeys || data.credentials || data.devices || [];
+    return { status: "SUCCESS", count: data.count ?? passkeys.length, passkeys };
   }
 
   async deleteWebAuthnCredential(token: string | undefined, credentialId: string): Promise<{ status: string; message?: string }> {
