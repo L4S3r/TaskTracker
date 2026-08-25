@@ -13,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { OtpInput } from "@/components/ui/otp-input";
 import QRCode from "qrcode";
+import { registerPasskeyFlow, isWebAuthnSupported } from "@/lib/webauthn";
 import {
   Shield,
   Smartphone,
@@ -35,6 +36,9 @@ import {
   RotateCcw,
   Clock,
   Radio,
+  Fingerprint,
+  Key,
+  Plus,
 } from "lucide-react";
 
 export function SecuritySettings() {
@@ -59,6 +63,15 @@ export function SecuritySettings() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  // WebAuthn / Passkeys State
+  const [passkeys, setPasskeys] = useState<any[]>([]);
+  const [isLoadingPasskeys, setIsLoadingPasskeys] = useState(false);
+  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
+  const [isPasskeyModalOpen, setIsPasskeyModalOpen] = useState(false);
+  const [passkeyLabel, setPasskeyLabel] = useState("");
+  const [passkeyRevokingId, setPasskeyRevokingId] = useState<string | null>(null);
+  const [webAuthnSupported, setWebAuthnSupported] = useState(false);
+
   // Trusted Devices State
   const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
@@ -67,6 +80,20 @@ export function SecuritySettings() {
   const [deviceActionMsg, setDeviceActionMsg] = useState<string | null>(null);
 
   const isMfaActive = Boolean(user?.metadata?.mfa_enabled);
+
+  const fetchPasskeys = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingPasskeys(true);
+    try {
+      const res = await api.getWebAuthnCredentials(token);
+      setPasskeys(res.credentials || []);
+    } catch {
+      // Backend may return empty list or not have credentials yet
+      setPasskeys([]);
+    } finally {
+      setIsLoadingPasskeys(false);
+    }
+  }, [token]);
 
   const fetchTrustedDevices = useCallback(async () => {
     if (!token) return;
@@ -82,8 +109,64 @@ export function SecuritySettings() {
   }, [token]);
 
   useEffect(() => {
+    setWebAuthnSupported(isWebAuthnSupported());
     fetchTrustedDevices();
-  }, [fetchTrustedDevices]);
+    fetchPasskeys();
+  }, [fetchTrustedDevices, fetchPasskeys]);
+
+  const handleOpenPasskeyModal = () => {
+    const defaultName =
+      typeof navigator !== "undefined" && navigator.userAgent.includes("Mac")
+        ? "MacBook Touch ID / Apple Passkey"
+        : typeof navigator !== "undefined" && navigator.userAgent.includes("Windows")
+        ? "Windows Hello Passkey"
+        : "FIDO2 Security Key";
+    setPasskeyLabel(defaultName);
+    setIsPasskeyModalOpen(true);
+  };
+
+  const handleRegisterPasskey = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token) return;
+    setIsRegisteringPasskey(true);
+    setError(null);
+
+    try {
+      await registerPasskeyFlow(token, passkeyLabel.trim() || undefined);
+      setIsPasskeyModalOpen(false);
+      setPasskeyLabel("");
+      toast.success("Passkey Registered", "Hardware passkey / security key was registered successfully.");
+      setStatusMessage("Passkey registered successfully. You can now use it for instant biometric sign-in.");
+      setTimeout(() => setStatusMessage(null), 5000);
+      await fetchPasskeys();
+      await refreshProfile();
+    } catch (err: any) {
+      if (err.name === "NotAllowedError" || err.message?.includes("cancelled")) {
+        setError("Passkey registration was cancelled by user.");
+      } else {
+        setError(err.message || "Failed to register Passkey.");
+      }
+    } finally {
+      setIsRegisteringPasskey(false);
+    }
+  };
+
+  const handleDeletePasskey = async (credentialId: string) => {
+    if (!token || !confirm("Are you sure you want to remove this Passkey / Security Key?")) return;
+    setPasskeyRevokingId(credentialId);
+    setError(null);
+
+    try {
+      await api.deleteWebAuthnCredential(token, credentialId);
+      setPasskeys((prev) => prev.filter((p) => (p.id || p.credential_id) !== credentialId));
+      toast.success("Passkey Removed", "Security key was revoked from your account.");
+      await fetchPasskeys();
+    } catch (err: any) {
+      setError(err.message || "Failed to remove Passkey.");
+    } finally {
+      setPasskeyRevokingId(null);
+    }
+  };
 
   const handleStartMfaSetup = async () => {
     if (!token) return;
@@ -341,6 +424,116 @@ export function SecuritySettings() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* WebAuthn / Passkeys & Hardware Security Keys Card */}
+      <Card className="border-border/80 bg-card shadow-sm">
+        <CardHeader className="p-4 sm:p-5 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                <Fingerprint className="h-5 w-5 text-primary" />
+                <span>Passkeys &amp; Hardware Security Keys (WebAuthn)</span>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Passwordless, phishing-resistant cryptographic authentication using Touch ID, Face ID, Windows Hello, or YubiKey.
+              </CardDescription>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={handleOpenPasskeyModal}
+              disabled={!webAuthnSupported}
+              className="gap-1.5 text-xs shrink-0 shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Register Passkey</span>
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-5 pt-0 space-y-3">
+          {!webAuthnSupported ? (
+            <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-[11px] text-amber-600 dark:text-amber-400">
+              WebAuthn / FIDO2 Passkeys are not supported by this browser or environment.
+            </div>
+          ) : isLoadingPasskeys ? (
+            <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span>Loading registered passkeys...</span>
+            </div>
+          ) : passkeys.length === 0 ? (
+            <div className="text-center py-6 px-4 rounded-xl border border-dashed border-border/80 bg-secondary/20">
+              <Key className="h-8 w-8 text-muted-foreground/60 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-foreground">No Passkeys Registered</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm mx-auto">
+                Add a biometric passkey or hardware security key to sign in instantly without typing passwords or MFA codes.
+              </p>
+              <div className="mt-3">
+                <Button size="sm" variant="outline" onClick={handleOpenPasskeyModal} className="text-xs gap-1.5">
+                  <Fingerprint className="h-3.5 w-3.5 text-primary" />
+                  <span>Register First Passkey</span>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {passkeys.map((pk: any, idx: number) => {
+                const credId = pk.id || pk.credential_id || `passkey-${idx}`;
+                const label = pk.device_label || pk.label || pk.name || "FIDO2 / WebAuthn Passkey";
+                const createdAt = pk.created_at ? new Date(pk.created_at).toLocaleDateString() : "Active";
+                const transports: string[] = pk.transports || ["internal"];
+
+                return (
+                  <div
+                    key={credId}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 rounded-xl border border-border/70 bg-secondary/30 hover:border-border transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card border border-border/60 shadow-xs mt-0.5">
+                        <Fingerprint className="h-5 w-5 text-primary" />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-foreground">{label}</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary">
+                            FIDO2 COSE
+                          </Badge>
+                          {transports.map((t) => (
+                            <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 uppercase">
+                              {t}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1 font-mono text-[10px]">
+                            ID: {credId.slice(0, 16)}...
+                          </span>
+                          <span>&bull; Registered: {createdAt}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeletePasskey(credId)}
+                        isLoading={passkeyRevokingId === credId}
+                        className="text-xs h-8 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        <span>Remove</span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -683,6 +876,59 @@ export function SecuritySettings() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* Passkey Registration Modal */}
+      <Modal
+        isOpen={isPasskeyModalOpen}
+        onClose={() => setIsPasskeyModalOpen(false)}
+        title="Register Passkey / Security Key"
+        description="Add a cryptographic FIDO2 credential using Touch ID, Face ID, Windows Hello, or a hardware key."
+      >
+        <form onSubmit={handleRegisterPasskey} className="space-y-4 text-xs pt-1">
+          <div className="flex items-start gap-3 p-3.5 rounded-xl border border-primary/20 bg-primary/5">
+            <Fingerprint className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-foreground">Hardware &amp; Biometric Security</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                When you click &ldquo;Begin Registration&rdquo;, your browser will prompt you to scan your fingerprint, face, or touch your hardware security key.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              label="Key / Device Label"
+              placeholder="e.g. MacBook Touch ID, YubiKey 5C"
+              value={passkeyLabel}
+              onChange={(e) => setPasskeyLabel(e.target.value)}
+              required
+              disabled={isRegisteringPasskey}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              A nickname to help you identify this authenticator in your settings.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsPasskeyModalOpen(false)}
+              disabled={isRegisteringPasskey}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              isLoading={isRegisteringPasskey}
+              className="gap-2"
+            >
+              <Fingerprint className="h-4 w-4" />
+              <span>Begin Registration</span>
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

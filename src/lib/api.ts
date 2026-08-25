@@ -48,6 +48,30 @@ export interface MFARequiredResponse {
   challenge_id: string;
 }
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  detail: string;
+  retry_after_seconds?: number;
+  response?: {
+    data: any;
+    status: number;
+  };
+
+  constructor(message: string, status: number, rawErrorObj?: any, retryAfterSeconds?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = message;
+    this.code = rawErrorObj?.code || rawErrorObj?.type;
+    this.retry_after_seconds = rawErrorObj?.retry_after_seconds ?? retryAfterSeconds;
+    this.response = {
+      data: rawErrorObj || { detail: message },
+      status,
+    };
+  }
+}
+
 export type LoginResponse = AuthSuccessResponse | MFARequiredResponse;
 
 class ApiClient {
@@ -112,6 +136,19 @@ class ApiClient {
         detail = res.statusText || `HTTP error ${res.status}`;
       }
 
+      // Parse 429 Rate Limit retry_after_seconds from header or body
+      let retryAfterSeconds: number | undefined;
+      const retryHeader = res.headers.get("Retry-After");
+      if (retryHeader) {
+        const parsed = parseInt(retryHeader, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          retryAfterSeconds = parsed;
+        }
+      }
+      if (rawErrorObj?.retry_after_seconds) {
+        retryAfterSeconds = Number(rawErrorObj.retry_after_seconds);
+      }
+
       if (res.status === 403 && dispatchAuthEvents) {
         const isMembershipError =
           detail.includes("WORKSPACE_MEMBERSHIP_REQUIRED") ||
@@ -140,7 +177,7 @@ class ApiClient {
         }
       }
 
-      throw new Error(detail);
+      throw new ApiError(detail, res.status, rawErrorObj, retryAfterSeconds);
     }
     return res.json();
   }
@@ -852,6 +889,87 @@ class ApiClient {
     });
     return this.handleResponse<{ status: string; message: string }>(res);
   }
+
+  // ===========================================================================
+  // WebAuthn / Passkeys Endpoints
+  // ===========================================================================
+
+  async getWebAuthnRegisterOptions(token?: string): Promise<{ status: string; options?: any; publicKey?: any }> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/register/options`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      credentials: "include",
+      body: JSON.stringify({}),
+    });
+    return this.handleResponse(res);
+  }
+
+  async verifyWebAuthnRegister(
+    token: string | undefined,
+    payload: {
+      client_data_json: string;
+      attestation_object: string;
+      credential_id: string;
+      device_label?: string;
+      transports?: string[];
+    }
+  ): Promise<{ status: string; credential_id?: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/register/verify`, {
+      method: "POST",
+      headers: this.getHeaders(token),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse(res);
+  }
+
+  async getWebAuthnAuthenticateOptions(identifier?: string): Promise<{ status: string; options?: any; publicKey?: any }> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/authenticate/options`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(identifier ? { identifier } : {}),
+    });
+    return this.handleResponse(res, false);
+  }
+
+  async verifyWebAuthnAuthenticate(payload: {
+    client_data_json: string;
+    authenticator_data: string;
+    signature: string;
+    credential_id: string;
+    user_handle?: string | null;
+    identifier?: string;
+  }): Promise<AuthSuccessResponse> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/authenticate/verify`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse<AuthSuccessResponse>(res, false);
+  }
+
+  async getWebAuthnCredentials(token?: string): Promise<{ status: string; credentials: any[] }> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/credentials`, {
+      method: "GET",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    const data = await this.handleResponse<any>(res);
+    const credentials = Array.isArray(data) ? data : data.credentials || [];
+    return { status: "SUCCESS", credentials };
+  }
+
+  async deleteWebAuthnCredential(token: string | undefined, credentialId: string): Promise<{ status: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/webauthn/credentials/${encodeURIComponent(credentialId)}`, {
+      method: "DELETE",
+      headers: this.getHeaders(token),
+      credentials: "include",
+    });
+    return this.handleResponse(res);
+  }
 }
 
 export const api = new ApiClient();
+

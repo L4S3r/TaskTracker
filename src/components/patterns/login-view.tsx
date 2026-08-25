@@ -4,21 +4,25 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { loginPasskeyFlow, isWebAuthnSupported } from "@/lib/webauthn";
+import { useRateLimitCountdown } from "@/lib/use-rate-limit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { MfaModal } from "@/components/patterns/mfa-modal";
-import { CheckSquare, Shield, KeyRound, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { CheckSquare, Shield, KeyRound, AlertCircle, Eye, EyeOff, Fingerprint, Clock } from "lucide-react";
 
 export function LoginView() {
   const router = useRouter();
   const { loginSuccess } = useAuth();
+  const { countdown, isRateLimited, handleRateLimitError } = useRateLimitCountdown();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // MFA Challenge State
@@ -28,8 +32,10 @@ export function LoginView() {
 
   // Available OAuth providers
   const [providers, setProviders] = useState<string[]>([]);
+  const [webAuthnAvailable, setWebAuthnAvailable] = useState(false);
 
   useEffect(() => {
+    setWebAuthnAvailable(isWebAuthnSupported());
     api.getOAuthProviders().then((res) => {
       if (res.available_providers) {
         setProviders(res.available_providers);
@@ -39,6 +45,7 @@ export function LoginView() {
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRateLimited) return;
     setIsLoading(true);
     setError(null);
 
@@ -62,9 +69,41 @@ export function LoginView() {
         setError((res as any).message || (res as any).detail || "Failed to sign in. Please verify your credentials.");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to sign in. Please verify your credentials.");
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setError(`Too many login attempts. Rate limit exceeded. Please retry in ${secs}s.`);
+      } else {
+        setError(err.message || "Failed to sign in. Please verify your credentials.");
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    if (isRateLimited) return;
+    setIsPasskeyLoading(true);
+    setError(null);
+
+    try {
+      const res = await loginPasskeyFlow(identifier ? identifier.trim() : undefined);
+      if (res.status === "SUCCESS") {
+        await loginSuccess(res);
+        router.push("/");
+      } else {
+        setError("WebAuthn / Passkey authentication was not successful.");
+      }
+    } catch (err: any) {
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setError(`Rate limit exceeded. Please wait ${secs}s before retrying.`);
+      } else if (err.name === "NotAllowedError" || err.message?.includes("cancelled") || err.message?.includes("not allowed")) {
+        setError("Passkey prompt was cancelled or timed out.");
+      } else {
+        setError(err.message || "Failed to authenticate with Passkey.");
+      }
+    } finally {
+      setIsPasskeyLoading(false);
     }
   };
 
@@ -84,7 +123,12 @@ export function LoginView() {
         setMfaError((res as any).message || (res as any).detail || "Invalid verification code. Check your authenticator app or backup codes.");
       }
     } catch (err: any) {
-      setMfaError(err.message || "Invalid verification code. Check your authenticator app or backup codes.");
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setMfaError(`MFA rate limit exceeded. Please wait ${secs}s before attempting again.`);
+      } else {
+        setMfaError(err.message || "Invalid verification code. Check your authenticator app or backup codes.");
+      }
     } finally {
       setMfaLoading(false);
     }
@@ -118,11 +162,38 @@ export function LoginView() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {error && (
+          {isRateLimited && countdown !== null && (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-300 font-medium animate-pulse">
+              <Clock className="h-5 w-5 shrink-0 text-amber-500" />
+              <div className="flex-1">
+                <p className="font-semibold text-foreground">Rate Limit Active</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Too many attempts. Please wait <strong className="text-amber-600 dark:text-amber-400 font-bold">{countdown}s</strong> before retrying.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && !isRateLimited && (
             <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
+          )}
+
+          {/* WebAuthn / Passkey Quick Login */}
+          {webAuthnAvailable && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2.5 bg-card hover:bg-primary/5 hover:border-primary/40 font-medium text-xs h-10 shadow-xs text-foreground"
+              onClick={handlePasskeyLogin}
+              isLoading={isPasskeyLoading}
+              disabled={isRateLimited || isLoading}
+            >
+              <Fingerprint className="h-4 w-4 text-primary" />
+              <span>Sign in with Passkey / Hardware Key</span>
+            </Button>
           )}
 
           {/* Social OAuth Providers */}
@@ -134,6 +205,7 @@ export function LoginView() {
                   variant="outline"
                   className="w-full gap-2.5 bg-card hover:bg-muted/70 font-medium text-xs h-10 shadow-xs"
                   onClick={() => handleOAuthLogin("google")}
+                  disabled={isRateLimited}
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24">
                     <path
@@ -163,6 +235,7 @@ export function LoginView() {
                   variant="outline"
                   className="w-full gap-2.5 bg-card hover:bg-muted/70 font-medium text-xs h-10 shadow-xs"
                   onClick={() => handleOAuthLogin("github")}
+                  disabled={isRateLimited}
                 >
                   <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -191,6 +264,7 @@ export function LoginView() {
               placeholder="e.g. admin@l4s3r.site"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
+              disabled={isRateLimited}
             />
 
             <div>
@@ -211,6 +285,7 @@ export function LoginView() {
                 placeholder="Enter your account password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isRateLimited}
                 endIcon={
                   <button
                     type="button"
@@ -225,8 +300,14 @@ export function LoginView() {
               />
             </div>
 
-            <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading}>
-              Sign In
+            <Button
+              type="submit"
+              className="w-full mt-2"
+              size="lg"
+              isLoading={isLoading}
+              disabled={isRateLimited || isPasskeyLoading}
+            >
+              {isRateLimited ? `Try again in ${countdown}s` : "Sign In"}
             </Button>
           </form>
         </CardContent>

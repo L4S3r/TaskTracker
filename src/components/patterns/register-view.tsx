@@ -4,13 +4,15 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useRateLimitCountdown } from "@/lib/use-rate-limit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { CheckSquare, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { CheckSquare, AlertCircle, CheckCircle2, Eye, EyeOff, Clock } from "lucide-react";
 
 export function RegisterView() {
   const router = useRouter();
+  const { countdown, isRateLimited, handleRateLimitError } = useRateLimitCountdown();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +26,7 @@ export function RegisterView() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRateLimited) return;
     setError(null);
 
     if (password !== confirmPassword) {
@@ -44,7 +47,12 @@ export function RegisterView() {
         router.push("/login");
       }, 1500);
     } catch (err: any) {
-      setError(err.message || "Registration failed. Please check your inputs.");
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setError(`Rate limit exceeded for registration. Please wait ${secs}s.`);
+      } else {
+        setError(err.message || "Registration failed. Please check your inputs.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -62,7 +70,19 @@ export function RegisterView() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {error && (
+          {isRateLimited && countdown !== null && (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-300 font-medium animate-pulse">
+              <Clock className="h-5 w-5 shrink-0 text-amber-500" />
+              <div className="flex-1">
+                <p className="font-semibold text-foreground">Registration Rate Limited</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Please wait <strong className="text-amber-600 dark:text-amber-400 font-bold">{countdown}s</strong> before attempting to register.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && !isRateLimited && (
             <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{error}</span>
@@ -85,6 +105,7 @@ export function RegisterView() {
               placeholder="e.g. jdoe"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              disabled={isRateLimited}
             />
 
             <Input
@@ -94,6 +115,7 @@ export function RegisterView() {
               placeholder="e.g. jdoe@l4s3r.site"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isRateLimited}
             />
 
             <Input
@@ -104,6 +126,7 @@ export function RegisterView() {
               placeholder="Create a strong password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isRateLimited}
               endIcon={
                 <button
                   type="button"
@@ -125,6 +148,7 @@ export function RegisterView() {
               placeholder="Re-enter your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isRateLimited}
               endIcon={
                 <button
                   type="button"
@@ -138,8 +162,14 @@ export function RegisterView() {
               }
             />
 
-            <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading} disabled={success}>
-              Create Account
+            <Button
+              type="submit"
+              className="w-full mt-2"
+              size="lg"
+              isLoading={isLoading}
+              disabled={success || isRateLimited}
+            >
+              {isRateLimited ? `Try again in ${countdown}s` : "Create Account"}
             </Button>
           </form>
         </CardContent>

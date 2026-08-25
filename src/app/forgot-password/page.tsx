@@ -3,12 +3,14 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useRateLimitCountdown } from "@/lib/use-rate-limit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { KeyRound, Mail, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { KeyRound, Mail, ArrowLeft, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 
 export default function ForgotPasswordPage() {
+  const { countdown, isRateLimited, handleRateLimitError } = useRateLimitCountdown();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -17,7 +19,7 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || isRateLimited) return;
 
     setIsLoading(true);
     setError(null);
@@ -27,7 +29,12 @@ export default function ForgotPasswordPage() {
       setSubmitted(true);
       setMessage(res.message || "If an account matching that email address exists, password reset instructions have been sent.");
     } catch (err: any) {
-      setError(err.message || "Failed to submit password reset request. Please try again.");
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setError(`Rate limit exceeded for password reset requests. Please retry in ${secs}s.`);
+      } else {
+        setError(err.message || "Failed to submit password reset request. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +54,19 @@ export default function ForgotPasswordPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {error && (
+          {isRateLimited && countdown !== null && (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-300 font-medium animate-pulse">
+              <Clock className="h-5 w-5 shrink-0 text-amber-500" />
+              <div className="flex-1">
+                <p className="font-semibold text-foreground">Rate Limit Exceeded</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Please wait <strong className="text-amber-600 dark:text-amber-400 font-bold">{countdown}s</strong> before requesting another password reset.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && !isRateLimited && (
             <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{error}</span>
@@ -78,11 +97,18 @@ export default function ForgotPasswordPage() {
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isRateLimited}
                 startIcon={<Mail className="h-4 w-4" />}
               />
 
-              <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
-                Send Reset Link
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                isLoading={isLoading}
+                disabled={isRateLimited}
+              >
+                {isRateLimited ? `Try again in ${countdown}s` : "Send Reset Link"}
               </Button>
             </form>
           )}

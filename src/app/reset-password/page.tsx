@@ -4,15 +4,17 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { useRateLimitCountdown } from "@/lib/use-rate-limit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { KeyRound, Lock, ArrowLeft, CheckCircle2, AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { KeyRound, Lock, ArrowLeft, CheckCircle2, AlertCircle, Eye, EyeOff, Loader2, Clock } from "lucide-react";
 
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const { countdown, isRateLimited, handleRateLimitError } = useRateLimitCountdown();
 
   const [isVerifying, setIsVerifying] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
@@ -56,7 +58,7 @@ function ResetPasswordContent() {
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token || isRateLimited) return;
 
     if (newPassword.length < 8) {
       setFormError("Password must be at least 8 characters long.");
@@ -78,7 +80,12 @@ function ResetPasswordContent() {
         router.push("/login?reset=success");
       }, 3000);
     } catch (err: any) {
-      setFormError(err.message || "Failed to reset password. Please try again.");
+      if (handleRateLimitError(err)) {
+        const secs = err.retry_after_seconds || err?.response?.data?.retry_after_seconds || 60;
+        setFormError(`Rate limit exceeded for password reset. Please wait ${secs}s.`);
+      } else {
+        setFormError(err.message || "Failed to reset password. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +151,19 @@ function ResetPasswordContent() {
           </div>
         ) : (
           <form onSubmit={handleReset} className="space-y-3.5">
-            {formError && (
+            {isRateLimited && countdown !== null && (
+              <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-300 font-medium animate-pulse">
+                <Clock className="h-5 w-5 shrink-0 text-amber-500" />
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground">Rate Limit Active</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Please wait <strong className="text-amber-600 dark:text-amber-400 font-bold">{countdown}s</strong> before attempting to update your password.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {formError && !isRateLimited && (
               <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive font-medium">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{formError}</span>
@@ -158,6 +177,7 @@ function ResetPasswordContent() {
               placeholder="Minimum 8 characters"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              disabled={isRateLimited}
               startIcon={<Lock className="h-4 w-4" />}
               endIcon={
                 <button
@@ -179,11 +199,18 @@ function ResetPasswordContent() {
               placeholder="Re-enter your new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isRateLimited}
               startIcon={<Lock className="h-4 w-4" />}
             />
 
-            <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading}>
-              Update Password & Sign In
+            <Button
+              type="submit"
+              className="w-full mt-2"
+              size="lg"
+              isLoading={isLoading}
+              disabled={isRateLimited}
+            >
+              {isRateLimited ? `Try again in ${countdown}s` : "Update Password & Sign In"}
             </Button>
           </form>
         )}
