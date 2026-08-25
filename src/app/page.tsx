@@ -7,34 +7,19 @@ import { TaskBoard } from "@/components/patterns/task-board";
 import { InteractiveLandingDemo } from "@/components/patterns/interactive-landing-demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { TaskBoardSkeleton } from "@/components/ui/skeleton";
 import { CheckSquare, Shield, Users, ArrowRight, Lock } from "lucide-react";
 
 export default function HomePage() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xs text-muted-foreground">Authenticating session...</p>
-        </div>
-      </div>
-    );
+    return <TaskBoardSkeleton />;
   }
 
   if (user) {
     return (
-      <Suspense
-        fallback={
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              <p className="text-xs text-muted-foreground">Loading workspace...</p>
-            </div>
-          </div>
-        }
-      >
+      <Suspense fallback={<TaskBoardSkeleton />}>
         <TaskBoard />
       </Suspense>
     );

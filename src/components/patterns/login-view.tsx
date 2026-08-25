@@ -51,13 +51,15 @@ export function LoginView() {
             res.trusted_device?.device_label || res.trusted_device?.label
           );
         }
-        loginSuccess(res);
+        await loginSuccess(res);
         router.push("/");
       } else if (res.status === "MFA_REQUIRED") {
         setMfaChallenge({
           userId: res.user_id,
           challengeId: res.challenge_id,
         });
+      } else {
+        setError((res as any).message || (res as any).detail || "Failed to sign in. Please verify your credentials.");
       }
     } catch (err: any) {
       setError(err.message || "Failed to sign in. Please verify your credentials.");
@@ -75,9 +77,11 @@ export function LoginView() {
     try {
       const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
-        loginSuccess(res);
+        await loginSuccess(res);
         setMfaChallenge(null);
         router.push("/");
+      } else {
+        setMfaError((res as any).message || (res as any).detail || "Invalid verification code. Check your authenticator app or backup codes.");
       }
     } catch (err: any) {
       setMfaError(err.message || "Invalid verification code. Check your authenticator app or backup codes.");

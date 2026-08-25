@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CheckSquare, AlertCircle, ArrowRight, Eye, EyeOff, Building2, Sparkles } from "lucide-react";
 import Link from "next/link";
 
@@ -89,7 +90,7 @@ function AcceptInviteContent() {
         name: user?.name || undefined,
       });
 
-      loginSuccess(res);
+      await loginSuccess(res);
       if (res.active_workspace?.id) {
         await switchWorkspace(res.active_workspace.id);
       } else {
@@ -127,7 +128,7 @@ function AcceptInviteContent() {
         name: name.trim() || inviteData.name || undefined,
       });
 
-      loginSuccess(res);
+      await loginSuccess(res);
       router.replace("/");
     } catch (err: any) {
       setError(err.message || "Failed to accept invitation. Please try again or request a new invite.");
@@ -138,11 +139,23 @@ function AcceptInviteContent() {
 
   if (isLoadingVerify) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xs text-muted-foreground">Verifying invitation credentials with security gateway...</p>
-        </div>
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4 sm:p-6">
+        <Card className="w-full max-w-md shadow-2xl border-border/80 bg-card p-6 space-y-4 animate-in fade-in-50 duration-200">
+          <div className="flex flex-col items-center space-y-2 pb-2">
+            <Skeleton className="h-12 w-12 rounded-2xl" />
+            <Skeleton className="h-6 w-48 rounded-lg" />
+            <Skeleton className="h-4 w-64 rounded-md" />
+          </div>
+          <div className="space-y-2 p-3.5 rounded-xl border border-border/70 bg-secondary/20">
+            <Skeleton className="h-4 w-full rounded" />
+            <Skeleton className="h-4 w-3/4 rounded" />
+            <Skeleton className="h-4 w-4/5 rounded" />
+          </div>
+          <div className="space-y-3 pt-2">
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+        </Card>
       </div>
     );
   }

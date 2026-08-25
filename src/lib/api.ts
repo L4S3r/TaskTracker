@@ -85,8 +85,8 @@ class ApiClient {
     return headers;
   }
 
-  private async handleResponse<T>(res: Response): Promise<T> {
-    if (res.status === 401) {
+  private async handleResponse<T>(res: Response, dispatchAuthEvents: boolean = true): Promise<T> {
+    if (res.status === 401 && dispatchAuthEvents) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("auth:unauthorized"));
       }
@@ -112,7 +112,7 @@ class ApiClient {
         detail = res.statusText || `HTTP error ${res.status}`;
       }
 
-      if (res.status === 403) {
+      if (res.status === 403 && dispatchAuthEvents) {
         const isMembershipError =
           detail.includes("WORKSPACE_MEMBERSHIP_REQUIRED") ||
           detail.toLowerCase().includes("workspace membership") ||
@@ -130,7 +130,7 @@ class ApiClient {
         }
       }
 
-      if (res.status === 404) {
+      if (res.status === 404 && dispatchAuthEvents) {
         if (typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent("auth:notfound", {
@@ -156,7 +156,7 @@ class ApiClient {
       credentials: "include",
       body: JSON.stringify({ identifier, password }),
     });
-    return this.handleResponse<LoginResponse>(res);
+    return this.handleResponse<LoginResponse>(res, false);
   }
 
   async register(username: string, email: string, password: string): Promise<{ status: string; user: UserProfile }> {
@@ -166,7 +166,7 @@ class ApiClient {
       credentials: "include",
       body: JSON.stringify({ username, email, password }),
     });
-    return this.handleResponse<{ status: string; user: UserProfile }>(res);
+    return this.handleResponse<{ status: string; user: UserProfile }>(res, false);
   }
 
   async forgotPassword(email: string): Promise<{ status: string; message: string }> {
@@ -176,7 +176,7 @@ class ApiClient {
       credentials: "include",
       body: JSON.stringify({ email }),
     });
-    return this.handleResponse<{ status: string; message: string }>(res);
+    return this.handleResponse<{ status: string; message: string }>(res, false);
   }
 
   async verifyResetToken(token: string): Promise<{ status: string; valid: boolean; username?: string; masked_email?: string }> {
@@ -185,7 +185,7 @@ class ApiClient {
       headers: this.getHeaders(),
       credentials: "include",
     });
-    return this.handleResponse<{ status: string; valid: boolean; username?: string; masked_email?: string }>(res);
+    return this.handleResponse<{ status: string; valid: boolean; username?: string; masked_email?: string }>(res, false);
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ status: string; message: string }> {
@@ -195,7 +195,7 @@ class ApiClient {
       credentials: "include",
       body: JSON.stringify({ token, new_password: newPassword }),
     });
-    return this.handleResponse<{ status: string; message: string }>(res);
+    return this.handleResponse<{ status: string; message: string }>(res, false);
   }
 
   async completeMFA(
@@ -215,7 +215,7 @@ class ApiClient {
         remember_device: rememberDevice,
       }),
     });
-    return this.handleResponse<AuthSuccessResponse>(res);
+    return this.handleResponse<AuthSuccessResponse>(res, false);
   }
 
   async setupMFA(token: string): Promise<{
@@ -296,7 +296,7 @@ class ApiClient {
       credentials: "include",
       body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     });
-    return this.handleResponse(res);
+    return this.handleResponse(res, false);
   }
 
   async logout(token?: string | null, sessionId?: string, logoutAll: boolean = false): Promise<{ status: string }> {
@@ -309,10 +309,10 @@ class ApiClient {
         logout_all_devices: logoutAll,
       }),
     });
-    return this.handleResponse(res);
+    return this.handleResponse(res, false);
   }
 
-  async getMe(token?: string | null): Promise<{
+  async getMe(token?: string | null, dispatchUnauthorized: boolean = false): Promise<{
     status: string;
     user: UserProfile;
     claims?: any;
@@ -324,7 +324,7 @@ class ApiClient {
       headers: this.getHeaders(token),
       credentials: "include",
     });
-    const data = await this.handleResponse<any>(res);
+    const data = await this.handleResponse<any>(res, dispatchUnauthorized);
     const user = data.user || data;
     return {
       status: "SUCCESS",
@@ -611,13 +611,13 @@ class ApiClient {
       const res = await fetch(`${API_BASE}/workspaces/invite/verify?token=${encodeURIComponent(token)}`, {
         credentials: "include",
       });
-      return await this.handleResponse(res);
+      return await this.handleResponse(res, false);
     } catch {
       // Fallback to legacy endpoint if backend mounts at /team/invite/verify
       const res = await fetch(`${API_BASE}/team/invite/verify?token=${encodeURIComponent(token)}`, {
         credentials: "include",
       });
-      return await this.handleResponse(res);
+      return await this.handleResponse(res, false);
     }
   }
 
@@ -633,7 +633,7 @@ class ApiClient {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      return await this.handleResponse<AuthSuccessResponse>(res);
+      return await this.handleResponse<AuthSuccessResponse>(res, false);
     } catch {
       // Fallback to legacy endpoint if backend mounts at /team/invite/accept
       const res = await fetch(`${API_BASE}/team/invite/accept`, {
@@ -642,7 +642,7 @@ class ApiClient {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      return await this.handleResponse<AuthSuccessResponse>(res);
+      return await this.handleResponse<AuthSuccessResponse>(res, false);
     }
   }
 
@@ -809,7 +809,7 @@ class ApiClient {
         redirect_uri: redirectUri,
       }),
     });
-    return this.handleResponse<AuthSuccessResponse>(res);
+    return this.handleResponse<AuthSuccessResponse>(res, false);
   }
 
   // ===========================================================================

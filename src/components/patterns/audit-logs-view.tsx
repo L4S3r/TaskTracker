@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity,
   Shield,
@@ -340,9 +341,20 @@ export function AuditLogsView() {
 
         <CardContent className="p-0">
           {isLoading && logs.length === 0 ? (
-            <div className="flex min-h-[220px] items-center justify-center gap-2 text-xs text-muted-foreground">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span>Streaming audit telemetry...</span>
+            <div className="divide-y divide-border/50 p-4 space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="pt-3 first:pt-0 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                    <Skeleton className="h-4 w-32 rounded" />
+                    <Skeleton className="h-4 w-48 rounded hidden sm:block" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-3.5 w-24 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <AuditLogTable logs={filteredLogs} onInspectJson={(log) => setInspectingLog(log)} />

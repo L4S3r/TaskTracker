@@ -13,6 +13,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { CreateWorkspaceModal } from "@/components/patterns/create-workspace-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TeamManagerSkeleton } from "@/components/ui/skeleton";
 import {
   UserPlus,
   Mail,
@@ -66,6 +67,11 @@ export function TeamManager() {
 
   const fetchMembers = useCallback(async () => {
     if (!token) return;
+    if (!activeWorkspace && workspaces.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     const wsId = activeWorkspace?.id;
     try {
@@ -76,15 +82,21 @@ export function TeamManager() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeWorkspace?.id]);
+  }, [token, activeWorkspace?.id, workspaces.length]);
 
   // Immediate cache invalidation on workspace switch: clear previous workspace's members
   useEffect(() => {
     setMembers([]);
-    setIsLoading(true);
     setErrorMessage(null);
+
+    if (!activeWorkspace && workspaces.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
     fetchMembers();
-  }, [activeWorkspace?.id, fetchMembers]);
+  }, [activeWorkspace?.id, workspaces.length, fetchMembers]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +232,7 @@ export function TeamManager() {
   const activeCount = members.filter((m) => m.status === "active").length;
   const invitedCount = members.filter((m) => m.status === "invited" || m.status === "pending").length;
 
-  if (!isLoading && (!activeWorkspace || workspaces.length === 0)) {
+  if (!activeWorkspace && workspaces.length === 0) {
     return (
       <div className="flex min-h-[65vh] items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-6 sm:p-8 border-border/80 shadow-2xl bg-card animate-in fade-in-50 zoom-in-95 duration-200">
@@ -253,6 +265,10 @@ export function TeamManager() {
         />
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <TeamManagerSkeleton />;
   }
 
   return (

@@ -16,6 +16,7 @@ import { TaskDetailModal } from "./task-detail-modal";
 import { CreateWorkspaceModal } from "./create-workspace-modal";
 import { SprintAnalyticsModal } from "./sprint-analytics-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TaskBoardSkeleton } from "@/components/ui/skeleton";
 import {
   Plus,
   Search,
@@ -261,6 +262,11 @@ export function TaskBoard() {
 
   const fetchTasksAndMembers = useCallback(async () => {
     if (!token) return;
+    if (!activeWorkspace && workspaces.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -278,16 +284,22 @@ export function TaskBoard() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeWorkspace?.id]);
+  }, [token, activeWorkspace?.id, workspaces.length]);
 
   // Immediate cache invalidation on workspace switch: clear previous workspace's tasks & members
   useEffect(() => {
     setTasks([]);
     setMembers([]);
-    setIsLoading(true);
     setError(null);
+
+    if (!activeWorkspace && workspaces.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
     fetchTasksAndMembers();
-  }, [activeWorkspace?.id, fetchTasksAndMembers]);
+  }, [activeWorkspace?.id, workspaces.length, fetchTasksAndMembers]);
 
   // Real-Time WebSocket Channel for Live Board Synchronization (Phase 4.1)
   const { isConnected: isWsConnected } = useWorkspaceSocket(activeWorkspace?.id, {
@@ -458,7 +470,7 @@ export function TaskBoard() {
     setDeadlineFilter("all");
   };
 
-  if (!isLoading && (!activeWorkspace || workspaces.length === 0)) {
+  if (!activeWorkspace && workspaces.length === 0) {
     return (
       <div className="flex min-h-[65vh] items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-6 sm:p-8 border-border/80 shadow-2xl bg-card animate-in fade-in-50 zoom-in-95 duration-200">
@@ -491,6 +503,10 @@ export function TaskBoard() {
         />
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <TaskBoardSkeleton />;
   }
 
   return (

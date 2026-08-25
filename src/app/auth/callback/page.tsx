@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MfaModal } from "@/components/patterns/mfa-modal";
 
 function OAuthCallbackContent() {
@@ -22,6 +23,13 @@ function OAuthCallbackContent() {
 
   useEffect(() => {
     if (isExecuting.current) return;
+
+    const errorParam = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+    if (errorParam) {
+      setError(errorDescription || `OAuth authorization failed: ${errorParam}`);
+      return;
+    }
 
     const code = searchParams.get("code");
     const state = searchParams.get("state");
@@ -44,7 +52,7 @@ function OAuthCallbackContent() {
 
     api
       .exchangeOAuthCode(provider, code, codeVerifier, redirectUri)
-      .then((res: LoginResponse) => {
+      .then(async (res: LoginResponse) => {
         if (res.status === "SUCCESS") {
           if (res.mfa_skipped) {
             console.log(
@@ -52,7 +60,7 @@ function OAuthCallbackContent() {
               res.trusted_device?.device_label || res.trusted_device?.label
             );
           }
-          loginSuccess(res);
+          await loginSuccess(res);
           localStorage.removeItem("oauth_provider");
           localStorage.removeItem("oauth_code_verifier");
           localStorage.removeItem("oauth_state");
@@ -62,6 +70,8 @@ function OAuthCallbackContent() {
             userId: res.user_id,
             challengeId: res.challenge_id,
           });
+        } else {
+          setError((res as any).message || (res as any).detail || "Failed to exchange social authentication code.");
         }
       })
       .catch((err) => {
@@ -78,7 +88,7 @@ function OAuthCallbackContent() {
     try {
       const res = await api.completeMFA(mfaChallenge.userId, mfaChallenge.challengeId, code, rememberDevice);
       if (res.status === "SUCCESS") {
-        loginSuccess(res);
+        await loginSuccess(res);
         localStorage.removeItem("oauth_provider");
         localStorage.removeItem("oauth_code_verifier");
         localStorage.removeItem("oauth_state");
@@ -123,10 +133,15 @@ function OAuthCallbackContent() {
                 </Link>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-3 py-6">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                <p className="text-sm font-semibold text-foreground">Completing authentication handshake...</p>
-                <p className="text-xs text-muted-foreground">Exchanging cryptographic tokens with identity gateway.</p>
+              <div className="space-y-4 py-4 animate-in fade-in-50 duration-200">
+                <div className="flex flex-col items-center space-y-2">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <Skeleton className="h-5 w-56 rounded-md" />
+                  <Skeleton className="h-3.5 w-64 rounded-md" />
+                </div>
+                <div className="space-y-2 pt-2">
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                </div>
               </div>
             )}
           </CardHeader>
@@ -141,7 +156,13 @@ export default function OAuthCallbackPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[60vh] items-center justify-center p-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <Card className="w-full max-w-md p-6 border-border/80 shadow-2xl bg-card space-y-4">
+            <div className="flex flex-col items-center space-y-2">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-5 w-56 rounded-md" />
+              <Skeleton className="h-3.5 w-64 rounded-md" />
+            </div>
+          </Card>
         </div>
       }
     >

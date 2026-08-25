@@ -76,12 +76,16 @@ const config: Config = {
           "50%": { backgroundPosition: "100% 50%" },
           "100%": { backgroundPosition: "0% 50%" },
         },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "slide-out-right": "slide-out-right 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "slide-in-left": "slide-in-left 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "card-land": "card-land-pulse 300ms cubic-bezier(0.16, 1, 0.3, 1)",
         "gradient-flow": "gradient-flow 4s ease infinite",
+        shimmer: "shimmer 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite",
       },
     },
   },

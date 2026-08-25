@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { AuditLogsView } from "@/components/patterns/audit-logs-view";
+import { AuditLogsSkeleton } from "@/components/ui/skeleton";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -11,11 +12,7 @@ export default function WorkspaceAuditLogsPage() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+    return <AuditLogsSkeleton />;
   }
 
   if (!user) {

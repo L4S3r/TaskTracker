@@ -108,7 +108,7 @@ interface AuthContextType {
   deleteWorkspace: (workspaceId: string) => Promise<void>;
   fetchWorkspaces: () => Promise<Workspace[]>;
   setActiveWorkspace: (ws: Workspace | null) => void;
-  loginSuccess: (authData: AuthSuccessResponse) => void;
+  loginSuccess: (authData: AuthSuccessResponse) => Promise<void>;
   logout: (logoutAll?: boolean) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -156,7 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("active_workspace");
       localStorage.removeItem("workspaces_list");
     }
-    if (redirectToLogin && pathname && !["/login", "/register", "/forgot-password", "/reset-password", "/invite/accept", "/auth/callback"].includes(pathname)) {
+    const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/invite/accept", "/auth/callback"];
+    if (redirectToLogin && pathname && !publicPaths.includes(pathname)) {
       router.push("/login?expired=true");
     }
   }, [pathname, router, setActiveWorkspace]);
@@ -389,17 +390,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         detail.toLowerCase().includes("access to that workspace");
 
       if (isMembershipError) {
-        const msg = "You do not have access to that workspace.";
-        setPermissionAlert(msg);
-        
-        // Auto-redirect to default workspace or dashboard
         const currentWorkspaces = workspacesRef.current;
         if (currentWorkspaces.length > 0) {
-          const defaultWs = currentWorkspaces[0];
-          setActiveWorkspaceRef.current(defaultWs);
-          api.setActiveWorkspaceId(defaultWs.id);
+          const fallbackWs = currentWorkspaces[0];
+          setActiveWorkspaceRef.current(fallbackWs);
+          api.setActiveWorkspaceId(fallbackWs.id);
+          const msg = "You do not have access to that workspace.";
+          setPermissionAlert(msg);
+        } else {
+          setActiveWorkspaceRef.current(null);
+          api.setActiveWorkspaceId(null);
         }
         
+        const authPaths = ["/login", "/register", "/forgot-password", "/reset-password", "/invite/accept", "/auth/callback"];
         if (typeof window !== "undefined") {
           // Clean unauthorized workspace query params
           if (window.location.search) {
@@ -410,7 +413,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               window.history.replaceState({}, "", url.pathname + (url.search || ""));
             }
           }
-          if (pathnameRef.current !== "/") {
+          if (currentWorkspaces.length > 0 && pathnameRef.current !== "/" && !authPaths.includes(pathnameRef.current || "")) {
             routerRef.current.push("/");
           }
         }
@@ -454,10 +457,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, attemptTokenRefresh]);
 
-  const loginSuccess = (authData: AuthSuccessResponse) => {
-    setToken(authData.access_token || "cookie_session");
+  const loginSuccess = async (authData: AuthSuccessResponse) => {
+    const accessToken = authData.access_token || "cookie_session";
+    setToken(accessToken);
     if (authData.refresh_token) {
       setRefreshToken(authData.refresh_token);
+    }
+    if (typeof window !== "undefined") {
+      if (authData.access_token) {
+        localStorage.setItem("auth_token", authData.access_token);
+      }
+      if (authData.refresh_token) {
+        localStorage.setItem("refresh_token", authData.refresh_token);
+      }
     }
 
     if (authData.user) {
@@ -475,19 +487,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!authData.active_workspace && !authData.workspace && authData.workspaces.length > 0) {
         setActiveWorkspace(authData.workspaces[0]);
       }
-    } else {
-      api.getWorkspaces().then((res) => {
-        if (res.workspaces && res.workspaces.length > 0) {
-          setWorkspaces(res.workspaces);
-          if (!activeWorkspace) {
-            setActiveWorkspace(res.workspaces[0]);
-          }
-        }
-      }).catch(() => {});
     }
 
-    // Always synchronize latest user profile data (including OAuth avatar) from GET /auth/me
-    api.getMe().then((me) => {
+    // Await synchronization from GET /auth/me to ensure user is hydrated before route transition
+    try {
+      const me = await api.getMe(authData.access_token, false);
       if (me.user) {
         const freshUser = normalizeUser(me.user);
         setUser(freshUser);
@@ -498,7 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (me.workspaces && me.workspaces.length > 0) {
         setWorkspaces(me.workspaces);
       }
-    }).catch(() => {});
+    } catch {}
   };
 
   const logout = async (logoutAll: boolean = false) => {

@@ -59,7 +59,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-200 overflow-x-hidden w-full max-w-full">
+      <body className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-x-hidden w-full max-w-full">
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>
