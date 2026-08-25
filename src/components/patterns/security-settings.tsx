@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { OtpInput } from "@/components/ui/otp-input";
 import QRCode from "qrcode";
 import { registerPasskeyFlow, isWebAuthnSupported } from "@/lib/webauthn";
@@ -70,14 +71,23 @@ export function SecuritySettings() {
   const [isPasskeyModalOpen, setIsPasskeyModalOpen] = useState(false);
   const [passkeyLabel, setPasskeyLabel] = useState("");
   const [passkeyRevokingId, setPasskeyRevokingId] = useState<string | null>(null);
+  const [passkeyToDelete, setPasskeyToDelete] = useState<{ id: string; label: string } | null>(null);
   const [webAuthnSupported, setWebAuthnSupported] = useState(false);
 
   // Trusted Devices State
   const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [deviceRevokingId, setDeviceRevokingId] = useState<string | null>(null);
+  const [deviceToRevoke, setDeviceToRevoke] = useState<TrustedDevice | null>(null);
   const [isRevokingAll, setIsRevokingAll] = useState(false);
+  const [isRevokeAllConfirmOpen, setIsRevokeAllConfirmOpen] = useState(false);
   const [deviceActionMsg, setDeviceActionMsg] = useState<string | null>(null);
+
+  // 2FA Disablement & Global Logout Confirmation States
+  const [isDisableMfaConfirmOpen, setIsDisableMfaConfirmOpen] = useState(false);
+  const [isDisablingMfa, setIsDisablingMfa] = useState(false);
+  const [isGlobalLogoutConfirmOpen, setIsGlobalLogoutConfirmOpen] = useState(false);
+  const [isLoggingOutAll, setIsLoggingOutAll] = useState(false);
 
   const isMfaActive = Boolean(user?.metadata?.mfa_enabled);
 
@@ -152,18 +162,27 @@ export function SecuritySettings() {
     }
   };
 
-  const handleDeletePasskey = async (credentialId: string) => {
-    if (!token || !confirm("Are you sure you want to remove this Passkey / Security Key?")) return;
-    setPasskeyRevokingId(credentialId);
+  const handleDeletePasskeyPrompt = (credentialId: string, label?: string) => {
+    setPasskeyToDelete({
+      id: credentialId,
+      label: label || "Windows Hello / Passkey",
+    });
+  };
+
+  const handleConfirmDeletePasskey = async () => {
+    if (!token || !passkeyToDelete) return;
+    setPasskeyRevokingId(passkeyToDelete.id);
     setError(null);
 
     try {
-      await api.deleteWebAuthnCredential(token, credentialId);
-      setPasskeys((prev) => prev.filter((p) => (p.id || p.credential_id) !== credentialId));
-      toast.success("Passkey Removed", "Security key was revoked from your account.");
+      await api.deleteWebAuthnCredential(token, passkeyToDelete.id);
+      setPasskeys((prev) => prev.filter((p) => (p.id || p.credential_id) !== passkeyToDelete.id));
+      toast.success("Passkey Removed", `"${passkeyToDelete.label}" was revoked from your account.`);
+      setPasskeyToDelete(null);
       await fetchPasskeys();
     } catch (err: any) {
       setError(err.message || "Failed to remove Passkey.");
+      toast.error("Revocation Failed", err.message || "Could not remove Passkey.");
     } finally {
       setPasskeyRevokingId(null);
     }
@@ -223,61 +242,78 @@ export function SecuritySettings() {
     }
   };
 
-  const handleDisableMFA = async () => {
-    if (!token || !confirm("Are you sure you want to disable two-factor authentication? This reduces your account security.")) return;
-    setIsLoading(true);
+  const handleConfirmDisableMFA = async () => {
+    if (!token) return;
+    setIsDisablingMfa(true);
     setError(null);
 
     try {
       await api.disableMFA(token);
       await refreshProfile();
+      setIsDisableMfaConfirmOpen(false);
       setStatusMessage("Two-factor authentication has been disabled.");
       toast.warning("MFA Disabled", "Two-Factor Authentication has been removed.");
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
       setError(err.message || "Failed to disable MFA.");
+      toast.error("MFA Error", err.message || "Failed to disable MFA.");
     } finally {
-      setIsLoading(false);
+      setIsDisablingMfa(false);
     }
   };
 
-  const handleRevokeDevice = async (deviceId: string) => {
-    if (!token) return;
+  const handleConfirmRevokeDevice = async () => {
+    if (!token || !deviceToRevoke) return;
+    const deviceId = deviceToRevoke.id;
+    const deviceLabel = deviceToRevoke.device_label || deviceToRevoke.user_agent || "Device";
     setDeviceRevokingId(deviceId);
     setDeviceActionMsg(null);
 
     try {
       await api.revokeTrustedDevice(token, deviceId);
       setTrustedDevices((prev) => prev.filter((d) => d.id !== deviceId));
-      setDeviceActionMsg("Device authorization revoked successfully.");
-      toast.success("Device Revoked", "Recognized browser session was signed out.");
+      setDeviceToRevoke(null);
+      setDeviceActionMsg(`Authorization revoked for ${deviceLabel}.`);
+      toast.success("Device Revoked", `"${deviceLabel}" was signed out.`);
       setTimeout(() => setDeviceActionMsg(null), 3500);
     } catch (err: any) {
       setError(err.message || "Failed to revoke device authorization.");
+      toast.error("Revocation Failed", err.message || "Could not revoke device.");
     } finally {
       setDeviceRevokingId(null);
     }
   };
 
-  const handleRevokeAllDevices = async () => {
-    if (
-      !token ||
-      !confirm("Are you sure you want to sign out of all trusted devices? MFA will be required on all browsers upon next login.")
-    )
-      return;
+  const handleConfirmRevokeAllDevices = async () => {
+    if (!token) return;
     setIsRevokingAll(true);
     setDeviceActionMsg(null);
 
     try {
       await api.revokeAllTrustedDevices(token);
       setTrustedDevices([]);
+      setIsRevokeAllConfirmOpen(false);
       setDeviceActionMsg("All trusted devices have been signed out and revoked.");
-      toast.success("All Sessions Revoked", "MFA will be required on all browsers.");
+      toast.success("All Sessions Revoked", "MFA will be required on all browsers upon next sign-in.");
       setTimeout(() => setDeviceActionMsg(null), 3500);
     } catch (err: any) {
       setError(err.message || "Failed to revoke all trusted devices.");
+      toast.error("Revocation Failed", err.message || "Could not revoke all trusted devices.");
     } finally {
       setIsRevokingAll(false);
+    }
+  };
+
+  const handleConfirmGlobalLogout = async () => {
+    setIsLoggingOutAll(true);
+    try {
+      toast.info("Signing Out", "Revoking all active sessions across browsers...");
+      await logout(true);
+    } catch (err: any) {
+      toast.error("Logout Error", err.message || "Failed to complete global sign-out.");
+    } finally {
+      setIsLoggingOutAll(false);
+      setIsGlobalLogoutConfirmOpen(false);
     }
   };
 
@@ -413,7 +449,12 @@ export function SecuritySettings() {
                     <QrCode className="h-4 w-4 mr-1.5" />
                     <span>Reconfigure QR</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={handleDisableMFA} isLoading={isLoading}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setIsDisableMfaConfirmOpen(true)}
+                    isLoading={isDisablingMfa}
+                  >
                     <span>Disable 2FA</span>
                   </Button>
                 </>
@@ -536,7 +577,7 @@ export function SecuritySettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeletePasskey(credId)}
+                        onClick={() => handleDeletePasskeyPrompt(credId, label)}
                         isLoading={passkeyRevokingId === credId}
                         className="text-xs h-8 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
                       >
@@ -570,7 +611,7 @@ export function SecuritySettings() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRevokeAllDevices}
+                onClick={() => setIsRevokeAllConfirmOpen(true)}
                 isLoading={isRevokingAll}
                 className="gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 shrink-0"
               >
@@ -648,7 +689,7 @@ export function SecuritySettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleRevokeDevice(device.id)}
+                        onClick={() => setDeviceToRevoke(device)}
                         isLoading={deviceRevokingId === device.id}
                         className="text-xs h-8 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
                       >
@@ -683,7 +724,13 @@ export function SecuritySettings() {
               </p>
             </div>
 
-            <Button variant="destructive" size="sm" onClick={() => logout(true)} className="gap-2 shrink-0 shadow-sm">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsGlobalLogoutConfirmOpen(true)}
+              isLoading={isLoggingOutAll}
+              className="gap-2 shrink-0 shadow-sm"
+            >
               <LogOut className="h-4 w-4" />
               <span>Revoke All Sessions</span>
             </Button>
@@ -945,6 +992,66 @@ export function SecuritySettings() {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Remove Passkey Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(passkeyToDelete)}
+        onClose={() => setPasskeyToDelete(null)}
+        onConfirm={handleConfirmDeletePasskey}
+        title="Remove Passkey / Security Key"
+        description={`Are you sure you want to remove "${passkeyToDelete?.label || 'this passkey'}"? You will no longer be able to use it to sign in.`}
+        confirmText="Remove Passkey"
+        variant="destructive"
+        isLoading={Boolean(passkeyRevokingId)}
+      />
+
+      {/* Confirm Disable 2FA Dialog */}
+      <ConfirmDialog
+        isOpen={isDisableMfaConfirmOpen}
+        onClose={() => setIsDisableMfaConfirmOpen(false)}
+        onConfirm={handleConfirmDisableMFA}
+        title="Disable Two-Factor Authentication"
+        description="Are you sure you want to disable two-factor authentication? This removes 6-digit TOTP protection and significantly reduces your account security."
+        confirmText="Disable 2FA"
+        variant="destructive"
+        isLoading={isDisablingMfa}
+      />
+
+      {/* Confirm Revoke Single Trusted Device Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deviceToRevoke)}
+        onClose={() => setDeviceToRevoke(null)}
+        onConfirm={handleConfirmRevokeDevice}
+        title="Revoke Device Authorization"
+        description={`Are you sure you want to sign out "${deviceToRevoke?.device_label || deviceToRevoke?.user_agent || 'this browser'}"? MFA will be required on its next sign-in.`}
+        confirmText="Revoke Device"
+        variant="destructive"
+        isLoading={Boolean(deviceRevokingId)}
+      />
+
+      {/* Confirm Revoke All Devices Dialog */}
+      <ConfirmDialog
+        isOpen={isRevokeAllConfirmOpen}
+        onClose={() => setIsRevokeAllConfirmOpen(false)}
+        onConfirm={handleConfirmRevokeAllDevices}
+        title="Sign Out of All Trusted Devices"
+        description="Are you sure you want to sign out of all trusted devices? This will invalidate 30-day device trust cookies and require MFA on all browser sessions upon next login."
+        confirmText="Sign Out All Devices"
+        variant="destructive"
+        isLoading={isRevokingAll}
+      />
+
+      {/* Confirm Global Logout Dialog */}
+      <ConfirmDialog
+        isOpen={isGlobalLogoutConfirmOpen}
+        onClose={() => setIsGlobalLogoutConfirmOpen(false)}
+        onConfirm={handleConfirmGlobalLogout}
+        title="Log Out From All Devices"
+        description="This will revoke all active sessions and blacklist your active JWT tokens across all browsers, tablets, and mobile devices."
+        confirmText="Revoke All Sessions"
+        variant="destructive"
+        isLoading={isLoggingOutAll}
+      />
     </div>
   );
 }

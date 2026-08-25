@@ -54,12 +54,6 @@ function OAuthCallbackContent() {
       .exchangeOAuthCode(provider, code, codeVerifier, redirectUri)
       .then(async (res: LoginResponse) => {
         if (res.status === "SUCCESS") {
-          if (res.mfa_skipped) {
-            console.log(
-              "MFA bypassed via trusted device:",
-              res.trusted_device?.device_label || res.trusted_device?.label
-            );
-          }
           await loginSuccess(res);
           localStorage.removeItem("oauth_provider");
           localStorage.removeItem("oauth_code_verifier");

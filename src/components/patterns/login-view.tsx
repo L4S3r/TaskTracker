@@ -52,12 +52,6 @@ export function LoginView() {
     try {
       const res = await api.login(identifier, password);
       if (res.status === "SUCCESS") {
-        if (res.mfa_skipped) {
-          console.log(
-            "MFA bypassed via trusted device:",
-            res.trusted_device?.device_label || res.trusted_device?.label
-          );
-        }
         await loginSuccess(res);
         router.push("/");
       } else if (res.status === "MFA_REQUIRED") {
