@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { InAppNotification } from "@/lib/tasks-store";
 import { useWorkspaceSocket } from "@/lib/use-workspace-socket";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
@@ -42,34 +44,30 @@ function formatRelativeTime(dateStr: string): string {
 export function NotificationCenter() {
   const router = useRouter();
   const { token, activeWorkspace, switchWorkspace } = useAuth();
-  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await api.getNotifications(token);
-      setNotifications(res.notifications || []);
-      setUnreadCount(res.unread_count || 0);
-    } catch {
-      // Ignore background errors
-    }
-  }, [token]);
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  // Real-time WebSocket hook to capture incoming notifications
-  useWorkspaceSocket(activeWorkspace?.id, {
-    onNotification: (newNotif: InAppNotification) => {
-      setNotifications((prev) => [newNotif, ...prev.filter((n) => n.id !== newNotif.id)]);
-      setUnreadCount((prev) => prev + 1);
+  // TanStack Query for notifications (Conservative caching, Zero HTTP short-polling)
+  const { data: notifData, isLoading } = useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: async () => {
+      const res = await api.getNotifications(token || undefined);
+      return {
+        unread_count: res.unread_count || 0,
+        notifications: res.notifications || [],
+      };
     },
+    enabled: Boolean(token),
   });
+
+  const notifications: InAppNotification[] = notifData?.notifications || [];
+  const unreadCount: number =
+    typeof notifData?.unread_count === "number"
+      ? notifData.unread_count
+      : notifications.filter((n) => !n.is_read || n.is_read === 0).length;
+
+  // Real-time WebSocket hook to capture live incoming notifications
+  useWorkspaceSocket(activeWorkspace?.id);
 
   // Handle click outside to close popover
   useEffect(() => {
@@ -88,25 +86,43 @@ export function NotificationCenter() {
 
   const handleMarkAsRead = async (id: string) => {
     if (!token) return;
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n))
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    // Optimistically update query cache
+    queryClient.setQueryData(queryKeys.notifications, (old: any) => {
+      if (!old) return old;
+      const list = old.notifications || [];
+      return {
+        ...old,
+        unread_count: Math.max(0, (old.unread_count || 1) - 1),
+        notifications: list.map((n: any) => (n.id === id ? { ...n, is_read: 1 } : n)),
+      };
+    });
+
     try {
       await api.markNotificationRead(token, id);
     } catch {
-      // Revert if error
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
     }
   };
 
   const handleMarkAllAsRead = async () => {
     if (!token) return;
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
-    setUnreadCount(0);
+
+    // Optimistically update query cache
+    queryClient.setQueryData(queryKeys.notifications, (old: any) => {
+      if (!old) return old;
+      const list = old.notifications || [];
+      return {
+        ...old,
+        unread_count: 0,
+        notifications: list.map((n: any) => ({ ...n, is_read: 1 })),
+      };
+    });
+
     try {
       await api.markAllNotificationsRead(token);
     } catch {
-      // Revert if error
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
     }
   };
 

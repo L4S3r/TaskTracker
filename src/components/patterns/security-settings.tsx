@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { TrustedDevice } from "@/lib/tasks-store";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -64,9 +66,18 @@ export function SecuritySettings() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // WebAuthn / Passkeys State
-  const [passkeys, setPasskeys] = useState<any[]>([]);
-  const [isLoadingPasskeys, setIsLoadingPasskeys] = useState(false);
+  // WebAuthn / Passkeys State (TanStack Query Caching)
+  const { data: passkeysData, isLoading: isLoadingPasskeys } = useQuery({
+    queryKey: queryKeys.passkeys,
+    queryFn: async () => {
+      if (!token) return [];
+      const res = await api.getWebAuthnCredentials(token);
+      return res.passkeys || (res as any).data?.passkeys || (res as any).credentials || [];
+    },
+    enabled: Boolean(token),
+  });
+  const passkeys: any[] = passkeysData || [];
+
   const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
   const [isPasskeyModalOpen, setIsPasskeyModalOpen] = useState(false);
   const [passkeyLabel, setPasskeyLabel] = useState("");
@@ -74,9 +85,18 @@ export function SecuritySettings() {
   const [passkeyToDelete, setPasskeyToDelete] = useState<{ id: string; label: string } | null>(null);
   const [webAuthnSupported, setWebAuthnSupported] = useState(false);
 
-  // Trusted Devices State
-  const [trustedDevices, setTrustedDevices] = useState<TrustedDevice[]>([]);
-  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  // Trusted Devices State (TanStack Query Caching)
+  const { data: trustedDevicesData, isLoading: isLoadingDevices } = useQuery({
+    queryKey: queryKeys.trustedDevices,
+    queryFn: async () => {
+      if (!token) return [];
+      const res = await api.getTrustedDevices(token);
+      return res.devices || [];
+    },
+    enabled: Boolean(token),
+  });
+  const trustedDevices: TrustedDevice[] = trustedDevicesData || [];
+
   const [deviceRevokingId, setDeviceRevokingId] = useState<string | null>(null);
   const [deviceToRevoke, setDeviceToRevoke] = useState<TrustedDevice | null>(null);
   const [isRevokingAll, setIsRevokingAll] = useState(false);
@@ -91,39 +111,9 @@ export function SecuritySettings() {
 
   const isMfaActive = Boolean(user?.metadata?.mfa_enabled);
 
-  const fetchPasskeys = useCallback(async () => {
-    if (!token) return;
-    setIsLoadingPasskeys(true);
-    try {
-      const res = await api.getWebAuthnCredentials(token);
-      // Backend returns { status: "SUCCESS", count: X, passkeys: [...] }
-      setPasskeys(res.passkeys || (res as any).data?.passkeys || (res as any).credentials || []);
-    } catch {
-      // Backend may return empty list or not have credentials yet
-      setPasskeys([]);
-    } finally {
-      setIsLoadingPasskeys(false);
-    }
-  }, [token]);
-
-  const fetchTrustedDevices = useCallback(async () => {
-    if (!token) return;
-    setIsLoadingDevices(true);
-    try {
-      const res = await api.getTrustedDevices(token);
-      setTrustedDevices(res.devices || []);
-    } catch {
-      // Best effort telemetry
-    } finally {
-      setIsLoadingDevices(false);
-    }
-  }, [token]);
-
   useEffect(() => {
     setWebAuthnSupported(isWebAuthnSupported());
-    fetchTrustedDevices();
-    fetchPasskeys();
-  }, [fetchTrustedDevices, fetchPasskeys]);
+  }, []);
 
   const handleOpenPasskeyModal = () => {
     const defaultName =
@@ -149,7 +139,8 @@ export function SecuritySettings() {
       toast.success("Passkey Registered", "Hardware passkey / security key was registered successfully.");
       setStatusMessage("Passkey registered successfully. You can now use it for instant biometric sign-in.");
       setTimeout(() => setStatusMessage(null), 5000);
-      await fetchPasskeys();
+      queryClient.invalidateQueries({ queryKey: queryKeys.passkeys });
+      queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
       await refreshProfile();
     } catch (err: any) {
       if (err.name === "NotAllowedError" || err.message?.includes("cancelled")) {
@@ -176,10 +167,9 @@ export function SecuritySettings() {
 
     try {
       await api.deleteWebAuthnCredential(token, passkeyToDelete.id);
-      setPasskeys((prev) => prev.filter((p) => (p.id || p.credential_id) !== passkeyToDelete.id));
+      queryClient.invalidateQueries({ queryKey: queryKeys.passkeys });
       toast.success("Passkey Removed", `"${passkeyToDelete.label}" was revoked from your account.`);
       setPasskeyToDelete(null);
-      await fetchPasskeys();
     } catch (err: any) {
       setError(err.message || "Failed to remove Passkey.");
       toast.error("Revocation Failed", err.message || "Could not remove Passkey.");
@@ -229,6 +219,7 @@ export function SecuritySettings() {
 
     try {
       await api.verifyMFASetup(token, verificationCode);
+      queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
       await refreshProfile();
       setIsMfaModalOpen(false);
       setStatusMessage("Two-factor authentication has been successfully enforced.");
@@ -249,6 +240,7 @@ export function SecuritySettings() {
 
     try {
       await api.disableMFA(token);
+      queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
       await refreshProfile();
       setIsDisableMfaConfirmOpen(false);
       setStatusMessage("Two-factor authentication has been disabled.");
@@ -271,7 +263,7 @@ export function SecuritySettings() {
 
     try {
       await api.revokeTrustedDevice(token, deviceId);
-      setTrustedDevices((prev) => prev.filter((d) => d.id !== deviceId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.trustedDevices });
       setDeviceToRevoke(null);
       setDeviceActionMsg(`Authorization revoked for ${deviceLabel}.`);
       toast.success("Device Revoked", `"${deviceLabel}" was signed out.`);
@@ -291,7 +283,7 @@ export function SecuritySettings() {
 
     try {
       await api.revokeAllTrustedDevices(token);
-      setTrustedDevices([]);
+      queryClient.invalidateQueries({ queryKey: queryKeys.trustedDevices });
       setIsRevokeAllConfirmOpen(false);
       setDeviceActionMsg("All trusted devices have been signed out and revoked.");
       toast.success("All Sessions Revoked", "MFA will be required on all browsers upon next sign-in.");

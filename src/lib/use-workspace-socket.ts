@@ -3,14 +3,24 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Task } from "./tasks-store";
 import { useAuth } from "./auth-context";
+import { handleNotificationSocketEvent } from "./query-client";
 
 export interface WorkspaceSocketEvent {
-  event: "connected" | "task.created" | "task.updated" | "task.deleted" | "notification.received" | "pong";
+  event:
+    | "connected"
+    | "task.created"
+    | "task.updated"
+    | "task.deleted"
+    | "notification.received"
+    | "notification.read"
+    | "notification.read_all"
+    | "pong";
   workspace_id?: string;
   task?: Task;
   task_id?: string;
   actor?: any;
   notification?: any;
+  id?: string;
   timestamp?: string;
 }
 
@@ -19,6 +29,8 @@ export interface UseWorkspaceSocketOptions {
   onTaskUpdated?: (task: Task) => void;
   onTaskDeleted?: (taskId: string) => void;
   onNotification?: (notification: any) => void;
+  onNotificationRead?: (notificationId: string) => void;
+  onNotificationReadAll?: () => void;
 }
 
 export function useWorkspaceSocket(
@@ -94,6 +106,16 @@ export function useWorkspaceSocket(
       ws.onmessage = (event) => {
         try {
           const data: WorkspaceSocketEvent = JSON.parse(event.data);
+
+          // Real-time reactive TanStack Query invalidation & cache patch
+          if (
+            data.event === "notification.received" ||
+            data.event === "notification.read" ||
+            data.event === "notification.read_all"
+          ) {
+            handleNotificationSocketEvent(data);
+          }
+
           if (data.event === "task.created" && data.task) {
             optionsRef.current.onTaskCreated?.(data.task);
           } else if (data.event === "task.updated" && data.task) {
@@ -102,6 +124,10 @@ export function useWorkspaceSocket(
             optionsRef.current.onTaskDeleted?.(data.task_id);
           } else if (data.event === "notification.received" && data.notification) {
             optionsRef.current.onNotification?.(data.notification);
+          } else if (data.event === "notification.read" && (data.id || data.task_id)) {
+            optionsRef.current.onNotificationRead?.(data.id || data.task_id!);
+          } else if (data.event === "notification.read_all") {
+            optionsRef.current.onNotificationReadAll?.();
           }
         } catch {
           // Non-JSON message (e.g. "pong")

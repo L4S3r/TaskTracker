@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
+import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast-context";
@@ -60,20 +61,22 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-x-hidden w-full max-w-full">
-        <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              <CommandPaletteProvider>
-                <Header />
-                <CommandPalette />
-                <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-6 overflow-x-hidden">
-                  {children}
-                </main>
-                <MobileNavBar />
-              </CommandPaletteProvider>
-            </ToastProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <ToastProvider>
+                <CommandPaletteProvider>
+                  <Header />
+                  <CommandPalette />
+                  <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-6 overflow-x-hidden">
+                    {children}
+                  </main>
+                  <MobileNavBar />
+                </CommandPaletteProvider>
+              </ToastProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

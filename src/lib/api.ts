@@ -86,6 +86,7 @@ export type LoginResponse = AuthSuccessResponse | MFARequiredResponse;
 
 class ApiClient {
   private activeWorkspaceId: string | null = null;
+  private etagCache = new Map<string, { etag: string; data: any }>();
 
   setActiveWorkspaceId(id: string | null | undefined) {
     this.activeWorkspaceId = id || null;
@@ -95,13 +96,27 @@ class ApiClient {
     return this.activeWorkspaceId;
   }
 
+  clearCache(urlOrPrefix?: string) {
+    if (!urlOrPrefix) {
+      this.etagCache.clear();
+      return;
+    }
+    const keysToDelete: string[] = [];
+    this.etagCache.forEach((_, key) => {
+      if (key.includes(urlOrPrefix)) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach((key) => this.etagCache.delete(key));
+  }
+
   private getCsrfToken(): string | null {
     if (typeof document === "undefined") return null;
     const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : null;
   }
 
-  private getHeaders(token?: string | null, workspaceId?: string | null): HeadersInit {
+  private getHeaders(token?: string | null, workspaceId?: string | null, cacheUrlKey?: string): HeadersInit {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -116,10 +131,20 @@ class ApiClient {
     if (csrf) {
       headers["X-CSRF-Token"] = csrf;
     }
+    if (cacheUrlKey && this.etagCache.has(cacheUrlKey)) {
+      const cached = this.etagCache.get(cacheUrlKey);
+      if (cached?.etag) {
+        headers["If-None-Match"] = cached.etag;
+      }
+    }
     return headers;
   }
 
-  private async handleResponse<T>(res: Response, dispatchAuthEvents: boolean = true): Promise<T> {
+  private async handleResponse<T>(res: Response, dispatchAuthEvents: boolean = true, cacheUrlKey?: string): Promise<T> {
+    if (res.status === 304 && cacheUrlKey && this.etagCache.has(cacheUrlKey)) {
+      return this.etagCache.get(cacheUrlKey)!.data as T;
+    }
+
     if (res.status === 401 && dispatchAuthEvents) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("auth:unauthorized"));
@@ -189,7 +214,15 @@ class ApiClient {
 
       throw new ApiError(detail, res.status, rawErrorObj, retryAfterSeconds);
     }
-    return res.json();
+
+    const data = await res.json();
+    if (cacheUrlKey) {
+      const etag = res.headers.get("ETag");
+      if (etag) {
+        this.etagCache.set(cacheUrlKey, { etag, data });
+      }
+    }
+    return data;
   }
 
   // =========================================================================
@@ -303,17 +336,19 @@ class ApiClient {
   // =========================================================================
 
   async getTrustedDevices(token: string): Promise<{ status: string; devices: TrustedDevice[] }> {
-    const res = await fetch(`${API_BASE}/auth/trusted-devices`, {
+    const url = `${API_BASE}/auth/trusted-devices`;
+    const res = await fetch(url, {
       method: "GET",
-      headers: this.getHeaders(token),
+      headers: this.getHeaders(token, undefined, url),
       credentials: "include",
     });
-    const data = await this.handleResponse<any>(res);
+    const data = await this.handleResponse<any>(res, true, url);
     const devices = Array.isArray(data) ? data : data.devices || [];
     return { status: "SUCCESS", devices };
   }
 
   async revokeTrustedDevice(token: string, deviceId: string): Promise<{ status: string; message?: string }> {
+    this.clearCache("/auth/trusted-devices");
     const res = await fetch(`${API_BASE}/auth/trusted-devices/${encodeURIComponent(deviceId)}`, {
       method: "DELETE",
       headers: this.getHeaders(token),
@@ -323,6 +358,7 @@ class ApiClient {
   }
 
   async revokeAllTrustedDevices(token: string): Promise<{ status: string; message?: string }> {
+    this.clearCache("/auth/trusted-devices");
     const res = await fetch(`${API_BASE}/auth/trusted-devices`, {
       method: "DELETE",
       headers: this.getHeaders(token),
@@ -366,12 +402,13 @@ class ApiClient {
     active_workspace?: Workspace;
     workspaces?: Workspace[];
   }> {
-    const res = await fetch(`${API_BASE}/auth/me`, {
+    const url = `${API_BASE}/auth/me`;
+    const res = await fetch(url, {
       method: "GET",
-      headers: this.getHeaders(token),
+      headers: this.getHeaders(token, undefined, url),
       credentials: "include",
     });
-    const data = await this.handleResponse<any>(res, dispatchUnauthorized);
+    const data = await this.handleResponse<any>(res, dispatchUnauthorized, url);
     const user = data.user || data;
     return {
       status: "SUCCESS",
@@ -870,17 +907,19 @@ class ApiClient {
     if (params?.limit) query.set("limit", String(params.limit));
     if (params?.offset) query.set("offset", String(params.offset));
     const qs = query.toString() ? `?${query.toString()}` : "";
-    const res = await fetch(`${API_BASE}/notifications${qs}`, {
-      headers: this.getHeaders(token),
+    const url = `${API_BASE}/notifications${qs}`;
+    const res = await fetch(url, {
+      headers: this.getHeaders(token, undefined, url),
       credentials: "include",
     });
-    return this.handleResponse<{ status: string; unread_count: number; notifications: InAppNotification[] }>(res);
+    return this.handleResponse<{ status: string; unread_count: number; notifications: InAppNotification[] }>(res, true, url);
   }
 
   async markNotificationRead(
     token: string | undefined,
     notificationId: string
   ): Promise<{ status: string; id: string; is_read: number }> {
+    this.clearCache("/notifications");
     const res = await fetch(`${API_BASE}/notifications/${encodeURIComponent(notificationId)}/read`, {
       method: "POST",
       headers: this.getHeaders(token),
@@ -892,6 +931,7 @@ class ApiClient {
   async markAllNotificationsRead(
     token?: string
   ): Promise<{ status: string; message: string }> {
+    this.clearCache("/notifications");
     const res = await fetch(`${API_BASE}/notifications/read-all`, {
       method: "POST",
       headers: this.getHeaders(token),
@@ -924,6 +964,7 @@ class ApiClient {
       transports?: string[];
     }
   ): Promise<{ status: string; credential_id?: string; message?: string }> {
+    this.clearCache("/auth/webauthn/credentials");
     const res = await fetch(`${API_BASE}/auth/webauthn/register/verify`, {
       method: "POST",
       headers: this.getHeaders(token),
@@ -961,12 +1002,13 @@ class ApiClient {
   }
 
   async getWebAuthnCredentials(token?: string): Promise<{ status: string; count: number; passkeys: PasskeyItem[] }> {
-    const res = await fetch(`${API_BASE}/auth/webauthn/credentials`, {
+    const url = `${API_BASE}/auth/webauthn/credentials`;
+    const res = await fetch(url, {
       method: "GET",
-      headers: this.getHeaders(token),
+      headers: this.getHeaders(token, undefined, url),
       credentials: "include",
     });
-    const data = await this.handleResponse<any>(res);
+    const data = await this.handleResponse<any>(res, true, url);
     const passkeys: PasskeyItem[] = Array.isArray(data)
       ? data
       : data.passkeys || data.credentials || data.devices || [];
@@ -974,6 +1016,7 @@ class ApiClient {
   }
 
   async deleteWebAuthnCredential(token: string | undefined, credentialId: string): Promise<{ status: string; message?: string }> {
+    this.clearCache("/auth/webauthn/credentials");
     const res = await fetch(`${API_BASE}/auth/webauthn/credentials/${encodeURIComponent(credentialId)}`, {
       method: "DELETE",
       headers: this.getHeaders(token),

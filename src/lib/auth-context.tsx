@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useRouter, usePathname } from "next/navigation";
 import { api, AuthSuccessResponse, UserProfile } from "./api";
 import { Workspace, WorkspaceRole } from "./tasks-store";
+import { queryClient, queryKeys } from "./query-client";
 
 function parseRoles(rawRoles: any): string[] {
   if (Array.isArray(rawRoles)) return rawRoles;
@@ -142,6 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearAuthSession = useCallback((redirectToLogin: boolean = true) => {
+    queryClient.clear();
+    api.clearCache();
     setToken(null);
     setRefreshToken(null);
     setUser(null);
@@ -201,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPermissionAlert(null);
     try {
       const res = await api.switchWorkspace(token, workspaceId);
+      queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
       if (res.access_token) {
         setToken(res.access_token);
         if (typeof window !== "undefined") {
@@ -434,30 +438,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [attemptTokenRefresh]);
 
-  // Periodic silent token refresh (every 10 minutes) & upon tab visibility return
-  useEffect(() => {
-    const triggerRefresh = () => {
-      if (user) {
-        attemptTokenRefresh();
-      }
-    };
-
-    // Access token TTL is 15m; silent refresh at 10m keeps session seamlessly uninterrupted
-    const interval = setInterval(triggerRefresh, 10 * 60 * 1000);
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible" && user) {
-        triggerRefresh();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [user, attemptTokenRefresh]);
-
   const loginSuccess = async (authData: AuthSuccessResponse) => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
     const accessToken = authData.access_token || "cookie_session";
     setToken(accessToken);
     if (authData.refresh_token) {
@@ -513,6 +495,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshProfile = async () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.authMe });
     try {
       const res = await api.getMe();
       const cleanUser = normalizeUser(res.user);
