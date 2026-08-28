@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { Task, TaskPriority, TaskStatus, TeamMember } from "@/lib/tasks-store";
 import { useWorkspaceSocket } from "@/lib/use-workspace-socket";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -114,8 +116,38 @@ export function TaskBoard() {
   const urlWorkspaceId = searchParams?.get("workspace") || searchParams?.get("workspace_id");
 
   const { token, user, activeWorkspace, workspaces, switchWorkspace, userRole, isAdmin, isDeveloper, isEditor, isViewer } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const wsId = activeWorkspace?.id;
+
+  const {
+    data: tasksData,
+    isLoading: isLoadingTasks,
+    error: tasksError,
+  } = useQuery({
+    queryKey: queryKeys.tasks(wsId),
+    queryFn: async () => {
+      if (!token) return [];
+      const res = await api.getTasks(token, { workspace_id: wsId });
+      return res.tasks || [];
+    },
+    enabled: Boolean(token && (wsId || workspaces.length > 0)),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: membersData } = useQuery({
+    queryKey: queryKeys.workspaceMembers(wsId),
+    queryFn: async () => {
+      if (!token) return [];
+      const res = wsId ? await api.getWorkspaceMembers(token, wsId) : await api.getTeamMembers(token);
+      return res.members || [];
+    },
+    enabled: Boolean(token && (wsId || workspaces.length > 0)),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const tasks: Task[] = useMemo(() => tasksData || [], [tasksData]);
+  const members: TeamMember[] = useMemo(() => membersData || [], [membersData]);
+  const isLoading = isLoadingTasks && tasks.length === 0;
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
   const [selectedDetailTask, setSelectedDetailTask] = useState<Task | null>(null);
@@ -123,7 +155,6 @@ export function TaskBoard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [deadlineFilter, setDeadlineFilter] = useState<string>("all");
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -261,74 +292,54 @@ export function TaskBoard() {
   }, []);
 
   const fetchTasksAndMembers = useCallback(async () => {
-    if (!token) return;
-    if (!activeWorkspace && workspaces.length === 0) {
-      setIsLoading(false);
-      return;
+    if (wsId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(wsId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(wsId) });
     }
-
-    setIsLoading(true);
-    setError(null);
-
-    const wsId = activeWorkspace?.id;
-
-    try {
-      const [tasksRes, membersRes] = await Promise.all([
-        api.getTasks(token, { workspace_id: wsId }),
-        wsId ? api.getWorkspaceMembers(token, wsId) : api.getTeamMembers(token),
-      ]);
-      setTasks(tasksRes.tasks || []);
-      setMembers(membersRes.members || []);
-    } catch (err: any) {
-      setError(err.message || "Failed to load workspace deliverables.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token, activeWorkspace?.id, workspaces.length]);
-
-  // Immediate cache invalidation on workspace switch: clear previous workspace's tasks & members
-  useEffect(() => {
-    setTasks([]);
-    setMembers([]);
-    setError(null);
-
-    if (!activeWorkspace && workspaces.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    fetchTasksAndMembers();
-  }, [activeWorkspace?.id, workspaces.length, fetchTasksAndMembers]);
+  }, [wsId]);
 
   // Real-Time WebSocket Channel for Live Board Synchronization (Phase 4.1)
   const { isConnected: isWsConnected } = useWorkspaceSocket(activeWorkspace?.id, {
     onTaskCreated: (newTask) => {
-      setTasks((prev) => {
-        if (prev.some((t) => t.id === newTask.id)) return prev;
-        return [newTask, ...prev];
+      queryClient.setQueryData(queryKeys.tasks(activeWorkspace?.id), (old: any) => {
+        const currentTasks: Task[] = Array.isArray(old) ? old : old?.tasks || [];
+        if (currentTasks.some((t) => t.id === newTask.id)) return old;
+        const updated = [newTask, ...currentTasks];
+        return Array.isArray(old) ? updated : { ...old, tasks: updated };
       });
       toast.info("Task Created", `"${newTask.title}" was added by a team member.`);
     },
     onTaskUpdated: (updatedTask) => {
-      setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t)));
+      queryClient.setQueryData(queryKeys.tasks(activeWorkspace?.id), (old: any) => {
+        const currentTasks: Task[] = Array.isArray(old) ? old : old?.tasks || [];
+        const updated = currentTasks.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t));
+        return Array.isArray(old) ? updated : { ...old, tasks: updated };
+      });
       setSelectedDetailTask((prev) => (prev && prev.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
     },
     onTaskDeleted: (deletedTaskId) => {
-      setTasks((prev) => prev.filter((t) => t.id !== deletedTaskId));
+      queryClient.setQueryData(queryKeys.tasks(activeWorkspace?.id), (old: any) => {
+        const currentTasks: Task[] = Array.isArray(old) ? old : old?.tasks || [];
+        const updated = currentTasks.filter((t) => t.id !== deletedTaskId);
+        return Array.isArray(old) ? updated : { ...old, tasks: updated };
+      });
       setSelectedDetailTask((prev) => (prev && prev.id === deletedTaskId ? null : prev));
     },
   });
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    if (!token || !canMove || transitioningTaskId) return;
+    if (!token || !canMove || transitioningTaskId || !activeWorkspace?.id) return;
 
     // 1. Trigger slide-out animation on the source column card
     setTransitioningTaskId(taskId);
 
     // 2. Commit status move after exit animation duration
     setTimeout(async () => {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+      queryClient.setQueryData(queryKeys.tasks(activeWorkspace?.id), (old: any) => {
+        const currentTasks: Task[] = Array.isArray(old) ? old : old?.tasks || [];
+        const updated = currentTasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t));
+        return Array.isArray(old) ? updated : { ...old, tasks: updated };
+      });
       setTransitioningTaskId(null);
       setJustArrivedTaskId(taskId);
 
@@ -349,7 +360,7 @@ export function TaskBoard() {
       try {
         await api.updateTask(token, taskId, { status: newStatus });
       } catch {
-        fetchTasksAndMembers();
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspace?.id) });
         toast.error("Sync Failed", "Could not persist status change. Reverting.");
       }
     }, 180);
@@ -405,18 +416,23 @@ export function TaskBoard() {
   };
 
   const handleConfirmDeleteTask = async () => {
-    if (!token || !taskToDelete || !canDeleteTask(taskToDelete)) return;
+    if (!token || !taskToDelete || !canDeleteTask(taskToDelete) || !activeWorkspace?.id) return;
     setIsDeletingTask(true);
     const targetId = taskToDelete.id;
     const taskTitle = taskToDelete.title;
 
     // Optimistic deletion
-    setTasks((prev) => prev.filter((t) => t.id !== targetId));
+    queryClient.setQueryData(queryKeys.tasks(activeWorkspace?.id), (old: any) => {
+      const currentTasks: Task[] = Array.isArray(old) ? old : old?.tasks || [];
+      const updated = currentTasks.filter((t) => t.id !== targetId);
+      return Array.isArray(old) ? updated : { ...old, tasks: updated };
+    });
+
     try {
       await api.deleteTask(token, targetId);
       toast.success("Task Deleted", `"${taskTitle}" was removed from the sprint board.`);
     } catch {
-      fetchTasksAndMembers();
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(activeWorkspace?.id) });
       toast.error("Failed to Delete", "Could not delete task deliverable.");
     } finally {
       setIsDeletingTask(false);

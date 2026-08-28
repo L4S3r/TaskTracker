@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { api } from "@/lib/api";
 import { WorkspaceMember, WorkspaceRole } from "@/lib/tasks-store";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -35,11 +37,28 @@ import {
 export function TeamManager() {
   const { token, user, activeWorkspace, workspaces, isAdmin, isSuperAdmin, deleteWorkspace } = useAuth();
   const { toast } = useToast();
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const wsId = activeWorkspace?.id;
+
+  const {
+    data: membersData,
+    isLoading: isLoadingMembers,
+    error: membersError,
+  } = useQuery({
+    queryKey: queryKeys.workspaceMembers(wsId),
+    queryFn: async () => {
+      if (!token) return [];
+      const res = wsId ? await api.getWorkspaceMembers(token, wsId) : await api.getTeamMembers(token);
+      return res.members || [];
+    },
+    enabled: Boolean(token && (wsId || workspaces.length > 0)),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const members: WorkspaceMember[] = useMemo(() => membersData || [], [membersData]);
+  const isLoading = isLoadingMembers && members.length === 0;
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Workspace Deletion State
   const [isDeleteWsOpen, setIsDeleteWsOpen] = useState(false);
@@ -66,37 +85,10 @@ export function TeamManager() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchMembers = useCallback(async () => {
-    if (!token) return;
-    if (!activeWorkspace && workspaces.length === 0) {
-      setIsLoading(false);
-      return;
+    if (wsId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(wsId) });
     }
-
-    setIsLoading(true);
-    const wsId = activeWorkspace?.id;
-    try {
-      const res = wsId ? await api.getWorkspaceMembers(token, wsId) : await api.getTeamMembers(token);
-      setMembers(res.members || []);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to load workspace members.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token, activeWorkspace?.id, workspaces.length]);
-
-  // Immediate cache invalidation on workspace switch: clear previous workspace's members
-  useEffect(() => {
-    setMembers([]);
-    setErrorMessage(null);
-
-    if (!activeWorkspace && workspaces.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    fetchMembers();
-  }, [activeWorkspace?.id, workspaces.length, fetchMembers]);
+  }, [wsId]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +102,6 @@ export function TeamManager() {
     setSuccessMessage(null);
     setGeneratedInviteUrl(null);
     setErrorMessage(null);
-
-    const wsId = activeWorkspace?.id;
 
     try {
       const payload = {
@@ -135,7 +125,7 @@ export function TeamManager() {
         setGeneratedInviteUrl(res.invite_url);
       }
 
-      await fetchMembers();
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(wsId) });
       setInviteEmail("");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to dispatch invitation.");
@@ -166,15 +156,22 @@ export function TeamManager() {
 
     const memberIdOrEmail = memberToEditRole.id || memberToEditRole.email;
 
+    // Optimistic UI update
+    queryClient.setQueryData(queryKeys.workspaceMembers(activeWorkspace.id), (old: any) => {
+      const currentList: WorkspaceMember[] = Array.isArray(old) ? old : old?.members || [];
+      const updated = currentList.map((m) =>
+        m.id === memberToEditRole.id || m.email === memberToEditRole.email ? { ...m, role: selectedNewRole } : m
+      );
+      return Array.isArray(old) ? updated : { ...old, members: updated };
+    });
+
     try {
       await api.updateWorkspaceMemberRole(token, activeWorkspace.id, memberIdOrEmail, selectedNewRole);
-      setMembers((prev) =>
-        prev.map((m) => (m.id === memberToEditRole.id || m.email === memberToEditRole.email ? { ...m, role: selectedNewRole } : m))
-      );
       toast.success("Clearance Updated", `Updated ${memberToEditRole.name || memberToEditRole.email} to ${selectedNewRole.toUpperCase()}.`);
       setMemberToEditRole(null);
-      await fetchMembers();
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(activeWorkspace.id) });
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(activeWorkspace.id) });
       setErrorMessage(err.message || "Failed to update member role.");
       toast.error("Update Failed", err.message || "Could not update clearance.");
     } finally {
@@ -186,14 +183,17 @@ export function TeamManager() {
     if (!token || !memberToDelete) return;
     setIsDeleting(true);
 
-    const wsId = activeWorkspace?.id;
     const memberIdOrEmail = memberToDelete.id || memberToDelete.email;
     const memberName = memberToDelete.name || memberToDelete.email;
 
     // Optimistic UI removal
-    setMembers((prev) =>
-      prev.filter((m) => m.email.toLowerCase() !== memberToDelete.email.toLowerCase() && m.id !== memberToDelete.id)
-    );
+    queryClient.setQueryData(queryKeys.workspaceMembers(wsId), (old: any) => {
+      const currentList: WorkspaceMember[] = Array.isArray(old) ? old : old?.members || [];
+      const updated = currentList.filter(
+        (m) => m.email.toLowerCase() !== memberToDelete.email.toLowerCase() && m.id !== memberToDelete.id
+      );
+      return Array.isArray(old) ? updated : { ...old, members: updated };
+    });
 
     try {
       if (wsId) {
@@ -204,11 +204,11 @@ export function TeamManager() {
       toast.success("Member Removed", `${memberName} was removed from workspace.`);
       setSuccessMessage("Member removed from workspace");
       setTimeout(() => setSuccessMessage(null), 3500);
-      await fetchMembers();
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(wsId) });
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(wsId) });
       setErrorMessage(err.message || "Failed to remove member.");
       toast.error("Removal Failed", err.message || "Could not remove member.");
-      await fetchMembers();
     } finally {
       setIsDeleting(false);
       setMemberToDelete(null);

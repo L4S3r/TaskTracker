@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 import { AuditLog } from "@/lib/tasks-store";
 import { fetchWorkspaceAuditLogs, fetchGlobalAuditLogs } from "@/services/audit-service";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import { AuditLogTable } from "@/components/patterns/audit-log-table";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +36,7 @@ import {
 export function AuditLogsView() {
   const { token, activeWorkspace, isAdmin, isSuperAdmin } = useAuth();
   const { toast } = useToast();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const wsId = activeWorkspace?.id;
 
   // Scope Toggle: "workspace" vs "global" (Superadmin organization compliance console)
   const [scope, setScope] = useState<"workspace" | "global">("workspace");
@@ -53,45 +53,40 @@ export function AuditLogsView() {
   const [inspectingLog, setInspectingLog] = useState<AuditLog | null>(null);
   const [copiedLogJson, setCopiedLogJson] = useState(false);
 
-  const fetchLogs = useCallback(async () => {
-    if (!token) return;
-    setIsLoading(true);
-    setError(null);
-
-    const wsId = activeWorkspace?.id;
-    try {
+  // TanStack Query for Audit Telemetry Caching
+  const {
+    data: logsData,
+    isLoading: isLoadingLogs,
+    error: logsError,
+    refetch: fetchLogs,
+  } = useQuery({
+    queryKey: [...queryKeys.auditLogs(wsId), scope, eventTypeFilter, severityFilter],
+    queryFn: async () => {
+      if (!token) return [];
       if (scope === "workspace" && wsId) {
-        const fetched = await fetchWorkspaceAuditLogs(token, wsId, {
+        return await fetchWorkspaceAuditLogs(token, wsId, {
           limit: 100,
           offset: 0,
           event_type: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
           severity: severityFilter !== "all" ? severityFilter : undefined,
         });
-        setLogs(fetched);
       } else {
-        const fetched = await fetchGlobalAuditLogs(token, {
+        return await fetchGlobalAuditLogs(token, {
           limit: 100,
           offset: 0,
           event_type: eventTypeFilter !== "all" ? eventTypeFilter : undefined,
           severity: severityFilter !== "all" ? severityFilter : undefined,
           workspace_id: scope === "workspace" && wsId ? wsId : undefined,
         });
-        setLogs(fetched);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to load audit telemetry from security gateway.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token, activeWorkspace?.id, scope, eventTypeFilter, severityFilter]);
+    },
+    enabled: Boolean(token && (scope === "global" || wsId)),
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // Immediate cache invalidation on workspace switch: clear previous workspace's audit telemetry
-  useEffect(() => {
-    setLogs([]);
-    setIsLoading(true);
-    setError(null);
-    fetchLogs();
-  }, [activeWorkspace?.id, scope, fetchLogs]);
+  const logs: AuditLog[] = useMemo(() => logsData || [], [logsData]);
+  const isLoading = isLoadingLogs && logs.length === 0;
+  const error = logsError ? (logsError as any).message || "Failed to load audit telemetry from security gateway." : null;
 
   const handleCopyJson = (payload: any) => {
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
@@ -242,7 +237,7 @@ export function AuditLogsView() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchLogs}
+            onClick={() => fetchLogs()}
             className="gap-1.5"
             title="Refresh telemetry"
           >
