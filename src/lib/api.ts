@@ -858,19 +858,26 @@ class ApiClient {
       });
       return this.handleResponse(res);
     } catch {
-      return { status: "SUCCESS", available_providers: ["google", "github"] };
+      return { status: "SUCCESS", available_providers: ["google", "github", "microsoft"] };
     }
   }
 
-  async getOAuthLoginUrl(provider: string, redirectUri?: string): Promise<{
+  async getOAuthLoginUrl(
+    provider: string,
+    redirectUri?: string,
+    targetAppUrl?: string
+  ): Promise<{
     status: string;
     authorization_url: string;
     state: string;
     code_verifier: string;
   }> {
-    const url = redirectUri
-      ? `${API_BASE}/auth/oauth/${provider}/login?redirect_uri=${encodeURIComponent(redirectUri)}`
-      : `${API_BASE}/auth/oauth/${provider}/login`;
+    const params = new URLSearchParams();
+    if (redirectUri) params.set("redirect_uri", redirectUri);
+    // target_app_url must match an entry in ALLOWED_FRONTEND_ORIGINS on the backend (e.g. https://tasks.l4s3r.site)
+    if (targetAppUrl) params.set("target_app_url", targetAppUrl);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const url = `${API_BASE}/auth/oauth/${provider}/login${qs}`;
     const res = await fetch(url, {
       credentials: "include",
     });
